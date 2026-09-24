@@ -48,11 +48,14 @@ export interface ComputedSurface {
 
 /** Exact hashed tool payload (matches toolDigest input). */
 function toolSurfacePayload(d: ToolDescriptor): ToolDescriptor {
-  return {
+  const payload: ToolDescriptor = {
     description: d.description,
     inputSchema: d.inputSchema,
     name: d.name,
   };
+  if (d.annotations !== undefined) payload.annotations = d.annotations;
+  if (d.outputSchema !== undefined) payload.outputSchema = d.outputSchema;
+  return payload;
 }
 
 /** Exact hashed resource payload (matches resourceDigest input). */

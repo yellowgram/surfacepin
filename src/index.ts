@@ -38,7 +38,9 @@ export type {
   FieldChange,
   ChangeSeverity,
   ChangeKind,
+  DiffTaxonomyKind,
 } from "./schema-diff.js";
+export { normalizeKinds } from "./schema-diff.js";
 export { fetchToolsViaStdio, fetchSurfacesViaStdio } from "./mcp-stdio.js";
 export type { StdioFetchOptions, ToolsListDoc } from "./mcp-stdio.js";
 export type {

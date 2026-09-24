@@ -42,11 +42,37 @@ function parseToolSurface(raw: unknown, label: string): ToolDescriptor | undefin
   if (!isPlainObject(raw.inputSchema)) {
     throw new SurfacePinError(`${label}.surface.inputSchema must be an object`);
   }
-  return {
+  const desc: ToolDescriptor = {
     name: raw.name,
     description: raw.description,
     inputSchema: raw.inputSchema as Record<string, unknown>,
   };
+  if (raw.annotations !== undefined) {
+    if (!isPlainObject(raw.annotations)) {
+      throw new SurfacePinError(
+        `${label}.surface.annotations must be an object when present`,
+      );
+    }
+    // Drop title if somehow present in an old/corrupt lock; never hash/diff it.
+    const kept: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw.annotations)) {
+      if (k === "title") continue;
+      kept[k] = v;
+    }
+    if (Object.keys(kept).length > 0) desc.annotations = kept;
+  }
+  if (raw.outputSchema !== undefined) {
+    if (raw.outputSchema === null) {
+      // treat null as omit (should not appear in well-formed locks)
+    } else if (!isPlainObject(raw.outputSchema)) {
+      throw new SurfacePinError(
+        `${label}.surface.outputSchema must be an object when present`,
+      );
+    } else {
+      desc.outputSchema = raw.outputSchema as Record<string, unknown>;
+    }
+  }
+  return desc;
 }
 
 function parseResourceSurface(

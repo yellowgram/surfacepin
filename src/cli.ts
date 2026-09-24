@@ -36,7 +36,7 @@ Live --stdio calls tools/list, resources/list, prompts/list as selected.
 Servers lacking a capability → empty list + stderr note.
 
 diff prints ADDED/REMOVED/CHANGED ids; for CHANGED tools/resources/prompts with
-a v3 lock, also prints path-level schema/field changes (BREAKING / non-breaking).
+a v3 lock, also prints path-level field changes (COMPATIBLE / BREAKING / HINT_FLIP).
 --json emits the DiffResult object.
 
 Exit codes: 0 match/ok, 1 drift, 2 usage/error

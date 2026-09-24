@@ -1,0 +1,40 @@
+{
+  "tools": [
+    {
+      "name": "echo",
+      "description": "Echo text back",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "title": "ignored"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "Echo Tool",
+      "icons": [
+        {
+          "src": "https://example.com/e.png"
+        }
+      ],
+      "_meta": {
+        "note": "ignored"
+      }
+    }
+  ]
+}

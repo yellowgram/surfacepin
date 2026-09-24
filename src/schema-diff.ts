@@ -3,6 +3,9 @@
  * Exact structural comparison only — no LLM, embeddings, or fuzzy similarity.
  */
 
+/** Taxonomy labels for explanatory field-diff (never affect exit codes). */
+export type DiffTaxonomyKind = "COMPATIBLE" | "BREAKING" | "HINT_FLIP";
+/** @deprecated Use DiffTaxonomyKind / FieldChange.kinds */
 export type ChangeSeverity = "breaking" | "non-breaking";
 export type ChangeKind = "added" | "removed" | "changed";
 
@@ -10,10 +13,26 @@ export interface FieldChange {
   /** Dot-path from descriptor root, e.g. "inputSchema.properties.text.type" */
   path: string;
   kind: ChangeKind;
-  severity: ChangeSeverity;
+  /**
+   * Taxonomy labels. Usually one of COMPATIBLE | BREAKING | HINT_FLIP.
+   * HINT_FLIP may co-occur with BREAKING on the same path → both listed.
+   */
+  kinds: DiffTaxonomyKind[];
   /** Compact JSON for display (optional). */
   oldValue?: string;
   newValue?: string;
+}
+
+/** Stable display order for kinds on one path line. */
+const KINDS_ORDER: DiffTaxonomyKind[] = ["HINT_FLIP", "BREAKING", "COMPATIBLE"];
+
+export function normalizeKinds(kinds: DiffTaxonomyKind[]): DiffTaxonomyKind[] {
+  const set = new Set(kinds);
+  return KINDS_ORDER.filter((k) => set.has(k));
+}
+
+function sevToKinds(severity: ChangeSeverity): DiffTaxonomyKind[] {
+  return severity === "breaking" ? ["BREAKING"] : ["COMPATIBLE"];
 }
 
 const META_KEYS = new Set([
@@ -76,11 +95,16 @@ function push(
   out: FieldChange[],
   path: string,
   kind: ChangeKind,
-  severity: ChangeSeverity,
+  severityOrKinds: ChangeSeverity | DiffTaxonomyKind[],
   oldValue?: unknown,
   newValue?: unknown,
 ): void {
-  const c: FieldChange = { path, kind, severity };
+  const kinds = normalizeKinds(
+    Array.isArray(severityOrKinds)
+      ? severityOrKinds
+      : sevToKinds(severityOrKinds),
+  );
+  const c: FieldChange = { path, kind, kinds };
   if (oldValue !== undefined) c.oldValue = compactJson(oldValue);
   if (newValue !== undefined) c.newValue = compactJson(newValue);
   out.push(c);
@@ -468,10 +492,133 @@ function diffAdditionalProperties(
 
 // --- Descriptor-level diffs (tool / resource / prompt) ---
 
-/** Diff two tool descriptors (name/description/inputSchema). */
+/** Known MCP ToolAnnotations hint keys. */
+const KNOWN_HINTS = new Set([
+  "readOnlyHint",
+  "destructiveHint",
+  "idempotentHint",
+  "openWorldHint",
+]);
+
+/**
+ * HINT_FLIP transitions (scarier / lost safety-leaning hints).
+ * Safer or newly asserted known hints → COMPATIBLE.
+ * Unknown annotation keys: any add/remove/change → HINT_FLIP.
+ */
+function isHintFlip(
+  key: string,
+  oldV: unknown | undefined,
+  newV: unknown | undefined,
+): boolean {
+  if (!KNOWN_HINTS.has(key)) {
+    // unknown key: added, removed, or changed
+    return true;
+  }
+  const present = (v: unknown | undefined) => v !== undefined;
+  // readOnlyHint: true→false or true→absent
+  if (key === "readOnlyHint") {
+    return oldV === true && (newV === false || !present(newV));
+  }
+  // destructiveHint: false→true or false→absent
+  if (key === "destructiveHint") {
+    return oldV === false && (newV === true || !present(newV));
+  }
+  // idempotentHint: true→false or true→absent
+  if (key === "idempotentHint") {
+    return oldV === true && (newV === false || !present(newV));
+  }
+  // openWorldHint: false→true or false→absent
+  if (key === "openWorldHint") {
+    return oldV === false && (newV === true || !present(newV));
+  }
+  return false;
+}
+
+/** Diff tool.annotations (never emits annotations.title). */
+function diffAnnotations(
+  out: FieldChange[],
+  oldAnn: Record<string, unknown> | undefined,
+  newAnn: Record<string, unknown> | undefined,
+): void {
+  const oldO = oldAnn ?? {};
+  const newO = newAnn ?? {};
+  // If both absent/empty, nothing to report
+  const oldKeys = new Set(Object.keys(oldO));
+  const newKeys = new Set(Object.keys(newO));
+  if (oldKeys.size === 0 && newKeys.size === 0) return;
+
+  const keys = new Set([...oldKeys, ...newKeys]);
+  for (const key of [...keys].sort(cmpStr)) {
+    // title is never hashed / never in diff paths
+    if (key === "title") continue;
+    const ov = oldO[key];
+    const nv = newO[key];
+    const oldPresent = oldKeys.has(key);
+    const newPresent = newKeys.has(key);
+    if (oldPresent && newPresent && deepEqual(ov, nv)) continue;
+
+    const path = `annotations.${key}`;
+    let changeKind: ChangeKind;
+    if (!oldPresent && newPresent) changeKind = "added";
+    else if (oldPresent && !newPresent) changeKind = "removed";
+    else changeKind = "changed";
+
+    const flip = isHintFlip(
+      key,
+      oldPresent ? ov : undefined,
+      newPresent ? nv : undefined,
+    );
+    const taxonomy: DiffTaxonomyKind[] = flip ? ["HINT_FLIP"] : ["COMPATIBLE"];
+    push(
+      out,
+      path,
+      changeKind,
+      taxonomy,
+      oldPresent ? ov : undefined,
+      newPresent ? nv : undefined,
+    );
+  }
+}
+
+/** Diff tool.outputSchema with existing schema rules; never HINT_FLIP. */
+function diffOutputSchema(
+  out: FieldChange[],
+  oldS: Record<string, unknown> | undefined,
+  newS: Record<string, unknown> | undefined,
+): void {
+  const oldPresent = oldS !== undefined;
+  const newPresent = newS !== undefined;
+  if (!oldPresent && !newPresent) return;
+  if (!oldPresent && newPresent) {
+    // add = BREAKING
+    push(out, "outputSchema", "added", "breaking", undefined, newS);
+    return;
+  }
+  if (oldPresent && !newPresent) {
+    // remove = BREAKING
+    push(out, "outputSchema", "removed", "breaking", oldS, undefined);
+    return;
+  }
+  // both present: recursive schema diff under outputSchema path
+  out.push(...diffJsonSchema(oldS, newS, "outputSchema"));
+}
+
+/** Diff two tool descriptors (hashed fields). */
 export function diffToolDescriptors(
-  oldD: { name: string; description: string; inputSchema: Record<string, unknown> },
-  newD: { name: string; description: string; inputSchema: Record<string, unknown> },
+  oldD: {
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+    annotations?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+  },
+  newD: {
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+    annotations?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+  },
 ): FieldChange[] {
   const out: FieldChange[] = [];
   if (oldD.name !== newD.name) {
@@ -481,6 +628,8 @@ export function diffToolDescriptors(
     push(out, "description", "changed", "non-breaking", oldD.description, newD.description);
   }
   out.push(...diffJsonSchema(oldD.inputSchema, newD.inputSchema, "inputSchema"));
+  diffAnnotations(out, oldD.annotations, newD.annotations);
+  diffOutputSchema(out, oldD.outputSchema, newD.outputSchema);
   out.sort((a, b) => cmpStr(a.path, b.path) || cmpStr(a.kind, b.kind));
   return out;
 }
@@ -596,8 +745,8 @@ export function diffPromptDescriptors(
 export function formatFieldChanges(changes: FieldChange[], indent = "        "): string[] {
   const lines: string[] = [];
   for (const c of changes) {
-    const tag = c.severity === "breaking" ? "BREAKING" : "non-breaking";
-    let line = `${indent}${c.kind.toUpperCase().padEnd(7)} ${c.path} (${tag})`;
+    const tag = normalizeKinds(c.kinds).join(" ");
+    const line = `${indent}${c.kind.toUpperCase().padEnd(7)} ${c.path} (${tag})`;
     if (c.kind === "changed" && c.oldValue !== undefined && c.newValue !== undefined) {
       lines.push(line);
       lines.push(`${indent}        ${c.oldValue} -> ${c.newValue}`);

@@ -2,15 +2,15 @@
 
 Lock **exact hashes** of an MCP server’s list surfaces and fail CI when they drift silently:
 
-- **tools** — `name`, `description`, `inputSchema`
+- **tools** — `name`, `description`, `inputSchema`, `annotations`, `outputSchema`
 - **resources** — `uri`, `name`, `description`, `mimeType`
 - **prompts** — `name`, `description`, `arguments`
 
 This is deterministic byte-level hashing — **not** semantic / LLM / embedding drift detection. If a description character changes, the digest changes.
 
-On mismatch, **lockfile v3** also explains *what* changed with a deterministic JSON Schema field-diff (breaking vs non-breaking). Pass/fail remains digest equality.
+On mismatch, **lockfile v3** also explains *what* changed with a deterministic field-diff (`COMPATIBLE` | `BREAKING` | `HINT_FLIP`). Pass/fail remains digest equality. Re-lock after upgrading to ≥1.4.
 
-Spec: [SPEC.md](./SPEC.md) (canonicalization `surfacepin-jcs-v1` + lockfile v1/v2/v3).
+Spec: [SPEC.md](./SPEC.md) (Lockfile Spec v1.4; canonicalization `surfacepin-jcs-v1` + lockfile v1/v2/v3).
 
 ## 60-second start
 
@@ -54,14 +54,16 @@ When a tool’s `inputSchema` drifts under a v3 lock:
 DRIFT: surface does not match lockfile
 CHANGED echo
         f35d75b2… -> a6fdd0e9…
-        CHANGED description (non-breaking)
+        CHANGED description (COMPATIBLE)
                 "Echo text back" -> "Echo text back (updated)"
-        ADDED   inputSchema.properties.lang (non-breaking)
+        ADDED   inputSchema.properties.lang (COMPATIBLE)
                 + {"type":"string"}
         CHANGED inputSchema.properties.text.type (BREAKING)
                 "string" -> "number"
         ADDED   inputSchema.required["lang"] (BREAKING)
                 + "lang"
+        CHANGED annotations.readOnlyHint (HINT_FLIP)
+                true -> false
 ```
 
 Machine output: `surfacepin diff … --json`.
@@ -89,16 +91,16 @@ Composite action under [`action/`](./action/). File-based tools verify (CI usual
 
 Or call the CLI yourself after `npm install surfacepin`.
 
-## What v1.3 does / does not
+## What v1.4 does / does not
 
 | Does | Does not |
 |------|----------|
-| Hash tools + resources + prompts | Semantic similarity gates |
+| Hash tools (+ annotations, outputSchema) + resources + prompts | Semantic similarity gates |
 | Lockfile v3 (embedded surfaces) + verify v1/v2/v3 | Streamable HTTP / SSE (stdio only) |
-| Deterministic schema field-diff on `diff` | LLM / fuzzy matching |
+| Deterministic field-diff: COMPATIBLE / BREAKING / HINT_FLIP | LLM / fuzzy matching; safety verdicts from hints |
 | Offline verify from JSON files | Hosted service, telemetry, signed locks |
-| Live list* via MCP stdio (`--stdio -- …`) | Resource templates list |
-| Breaking vs non-breaking path classification | |
+| Live list* via MCP stdio (`--stdio -- …`) | Resource templates / initialize.instructions |
+| Ignore tool title / icons / _meta | Materialize MCP annotation defaults into hashes |
 
 ## License
 
