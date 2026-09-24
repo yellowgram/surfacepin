@@ -40,6 +40,7 @@
 - [x] `surfacepin diff` prints path-level changes; `--json` for machine output
 - [x] Golden cases + unit/integration tests; `npm test` green
 - [x] No new runtime deps
+- [x] Published to npm: `surfacepin@1.3.0` on 2026-09-24
 
 ## How to run
 
