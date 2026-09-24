@@ -18,6 +18,18 @@ surfacepin verify tools.json surfacepin.lock.json
 surfacepin diff tools.json surfacepin.lock.json
 ```
 
+### Live MCP (stdio)
+
+Spawn a real MCP server, call `tools/list`, then lock/verify — same digests as the file path:
+
+```bash
+surfacepin lock --stdio -- npx -y @modelcontextprotocol/server-everything
+surfacepin verify --stdio surfacepin.lock.json -- npx -y @modelcontextprotocol/server-everything
+surfacepin diff --stdio surfacepin.lock.json -- npx -y @modelcontextprotocol/server-everything
+```
+
+Everything after `--` is the server command + args. Offline verify from committed JSON still works; live fetch only obtains `tools/list`.
+
 Exit codes: `0` match, `1` drift, `2` usage/parse error.
 
 Commit `surfacepin.lock.json`. Re-lock when you intentionally change the tool surface.
@@ -29,6 +41,7 @@ npm install
 npm test
 node dist/cli.js lock examples/tools.json -o /tmp/sp.lock.json
 node dist/cli.js verify examples/tools.json examples/surfacepin.lock.json
+node dist/cli.js lock --stdio -- node testdata/stub-mcp-server.mjs
 ```
 
 ## GitHub Action
@@ -42,16 +55,18 @@ node dist/cli.js verify examples/tools.json examples/surfacepin.lock.json
 
 Composite action under [`action/`](./action/). It builds/runs the CLI `verify` and fails the job on drift (exit 1).
 
+**Action stays file-based** (CI usually commits a tools dump + lockfile). Live `--stdio` is for local/CLI use.
+
 Or call the CLI yourself after `npm install surfacepin`.
 
-## What v1 does / does not
+## What v1.1 does / does not
 
 | Does | Does not |
 |------|----------|
 | Hash `name` + `description` + `inputSchema` | Pin resources / prompts |
-| Offline verify from JSON files | Live MCP network client (post-v1) |
-| Human-readable ADDED/REMOVED/CHANGED diff | Semantic similarity gates |
-| Near-zero runtime deps (Node `crypto`) | Hosted service, telemetry, signed locks |
+| Offline verify from JSON files | Streamable HTTP / SSE (stdio only this cut) |
+| Live `tools/list` via MCP stdio (`--stdio -- …`) | Semantic similarity gates |
+| Human-readable ADDED/REMOVED/CHANGED diff | Hosted service, telemetry, signed locks |
 
 ## License
 

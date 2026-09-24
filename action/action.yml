@@ -1,5 +1,5 @@
 name: SurfacePin
-description: Verify an MCP tools/list JSON dump against a SurfacePin lockfile (exact hash; fail on drift).
+description: Verify an MCP tools/list JSON dump against a SurfacePin lockfile (exact hash; fail on drift). File-based only — live --stdio is CLI/local.
 author: yellowgram
 branding:
   icon: lock

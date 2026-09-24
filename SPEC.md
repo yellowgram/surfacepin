@@ -5,7 +5,7 @@ CLI and Action are reference clients of this document.
 
 **Status:** v1 (2026-09-24)  
 **Scope:** MCP `tools/list` surface only (`name`, `description`, `inputSchema`).  
-**Not in v1:** resources, prompts, signed lockfiles, network MCP clients, semantic/embedding drift.
+**Wire format v1:** tools surface only. Live stdio adapter is out of band (CLI ≥1.1.0). Not in wire format: resources, prompts, signed lockfiles, semantic/embedding drift.
 
 ---
 
@@ -207,9 +207,18 @@ Exit codes same as verify (0 match, 1 drift, 2 error).
 
 ---
 
-## 7. Post-v1 (explicitly out of scope)
+## 7. Adapters (out of band)
 
-- Live MCP `tools/list` over stdio/HTTP (network client)
+Live MCP clients (stdio, etc.) are **reference adapters** that produce the input
+shape in §2. They are **not** part of the lockfile wire format. Digests and
+lockfile v1 are unchanged whether tools arrived from a file or from
+`tools/list` over stdio.
+
+The reference CLI supports `surfacepin … --stdio -- <command> [args…]` (package
+≥1.1.0). Streamable HTTP / SSE live fetch is not required for lockfile conformance.
+
+## 8. Post-v1 (explicitly out of scope for the wire format)
+
 - Pinning `resources/list` / `prompts/list`
 - Structured schema field-level diffs
 - Signed lockfiles / provenance
@@ -217,6 +226,6 @@ Exit codes same as verify (0 match, 1 drift, 2 error).
 
 ---
 
-## 8. Conformance
+## 9. Conformance
 
 Golden vectors under `testdata/` are normative for digests. Implementations MUST match those digests for the given inputs.
