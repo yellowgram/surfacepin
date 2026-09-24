@@ -13,11 +13,17 @@ export function sha256Hex(data: Buffer | string): string {
 
 /** Per-tool digest over the surface descriptor object. */
 export function toolDigest(descriptor: ToolDescriptor): string {
-  const payload = {
+  const payload: Record<string, unknown> = {
     description: descriptor.description,
     inputSchema: descriptor.inputSchema,
     name: descriptor.name,
   };
+  if (descriptor.annotations !== undefined) {
+    payload.annotations = descriptor.annotations;
+  }
+  if (descriptor.outputSchema !== undefined) {
+    payload.outputSchema = descriptor.outputSchema;
+  }
   return sha256Hex(canonicalizeToBytes(payload));
 }
 

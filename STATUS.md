@@ -61,16 +61,29 @@ Exit: 0 match, 1 drift, 2 usage/error.
 
 https://github.com/yellowgram/surfacepin
 
-## Known gaps (intentional)
+### v1.4.0
 
-- No Streamable HTTP / SSE live fetch yet (stdio is enough this cut)
-- Lockfiles are not signed
-- Action stays file-based tools-only (multi-surface / live stdio / schema diff are local/CLI)
+- [x] Complete agent-visible tool descriptor: hash `annotations` (drop `title`) + `outputSchema`
+- [x] Keep 1.3 coercions for `description` / `inputSchema`; do not materialize MCP annotation defaults
+- [x] Diff taxonomy: `COMPATIBLE` | `BREAKING` | `HINT_FLIP` (`kinds` array); pass/fail still digest-only
+- [x] SPEC / STATUS / README + golden tests; lockfile write remains v3; algorithm id unchanged
+- [x] Action unchanged; no new runtime deps
+- [ ] npm publish / git tag — founder-gated
+
+## Known gaps (intentional — document, do not implement this cut)
+
+- `initialize.instructions` not pinned
 - Resource templates (`resources/templates/list`) not pinned
+- `tool.title` / `tool.icons` / `tool._meta` ignored (decorative)
+- `resource.annotations` not hashed
+- `prompt.title` / `prompt.icons` / `prompt._meta` ignored
+- Action stays tools-file-only (multi-surface / live stdio are CLI/local)
+- No Streamable HTTP / SSE live fetch yet (stdio is enough)
+- Lockfiles are not signed
 
 ## Suggested next
 
-1. Optional Streamable HTTP live fetch (if cheap)
-2. Action multi-surface file inputs (if users ask)
+1. Action multi-surface file inputs (if users ask) — separate cut
+2. Optional Streamable HTTP live fetch (if cheap)
 3. Conformance suite packaged for external implementations
 4. Optional signed lockfiles (minisign / sigstore) — still exact-hash underneath

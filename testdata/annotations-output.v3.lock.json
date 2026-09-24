@@ -1,0 +1,41 @@
+{
+  "version": 3,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v1",
+  "root": "eb3d367190d9d62f77225e211b90da7090ad11152b541190a35dda25b637dcfa",
+  "tools": {
+    "root": "600629ad9aa40f4266cbe3c1bf37b0f2c9164259100cc31ae0eec35afcdea7d1",
+    "entries": [
+      {
+        "name": "echo",
+        "digest": "16c078cc8c9a59f0a1fef7b6067b995f2f805249f5e3c3123a27a66816d56057",
+        "surface": {
+          "description": "Echo text back",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          },
+          "name": "echo",
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

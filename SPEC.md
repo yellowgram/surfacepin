@@ -3,7 +3,7 @@
 Canonical specification for SurfacePin surface locking.
 CLI and Action are reference clients of this document.
 
-**Status:** v1.3 (2026-09-24)  
+**Status:** Lockfile Spec v1.4 (2026-09-24)  
 **Scope:** MCP `tools/list`, `resources/list`, and `prompts/list` surfaces.  
 **Wire formats:** lockfile **v1** (tools digests), **v2** (multi-surface digests), **v3** (multi-surface + embedded hashed payloads for structured field-diff).  
 **Not in wire format:** signed lockfiles, semantic/embedding drift, LLM-assisted diff.
@@ -24,9 +24,13 @@ CLI and Action are reference clients of this document.
 
 | Kind | MCP method | Identity key | Hashed fields |
 |------|------------|--------------|---------------|
-| `tools` | `tools/list` | `name` | `name`, `description`, `inputSchema` |
+| `tools` | `tools/list` | `name` | `name`, `description`, `inputSchema`, `annotations`, `outputSchema` |
 | `resources` | `resources/list` | `uri` | `uri`, `name`, `description`, `mimeType` |
 | `prompts` | `prompts/list` | `name` | `name`, `description`, `arguments` |
+
+**Field rule:** Hash a tools field only if an MCP client or host surfaces it for invocation, structured I/O, or client hints. Skip decorative and volatile fields. Do not inject MCP defaults into new hashed fields.
+
+Aligned to MCP schema revision **2026-07-28** as a documentation reference only (not a runtime fetch).
 
 Canonicalization algorithm id (unchanged): `"surfacepin-jcs-v1"`.
 
@@ -45,22 +49,32 @@ SurfacePin accepts a combined document:
 or List*Result-shaped objects that include those keys (other top-level fields ignored).
 Selected kinds with a missing key are treated as an **empty array**.
 
-### 2.2 Tools (unchanged from v1)
+### 2.2 Tools
 
 | Field | Required | Notes |
 |-------|----------|-------|
 | `name` | yes | Non-empty string. Primary identity. |
-| `description` | no | If absent, treated as `""`. |
-| `inputSchema` | no | If absent, treated as `{}`. Must be a JSON object when present. |
+| `description` | no | If absent, treated as `""` (1.3 coercion unchanged). |
+| `inputSchema` | no | If absent, treated as `{}`. Must be a JSON object when present (1.3 coercion unchanged). |
+| `annotations` | no | Source: `tool.annotations`. Drop only `title`. Keep all other keys including unknown. If absent or non-object → omit `annotations` key entirely. If empty after dropping `title` → omit key. **Do not** materialize MCP defaults into hashed fields. |
+| `outputSchema` | no | Absent or `null` → omit key. Empty object `{}` → include as empty object. Present non-object → usage error (exit 2). **Do not** coerce absent → `{}` (absent ≠ `{}`). |
 
-All other tool fields (`annotations`, `outputSchema`, etc.) are **ignored**.
+Still ignored (not hashed, never appear in diff paths): `title`, `icons`, `_meta`.
 Duplicate `name` values are a **usage error** (exit 2).
 
-**Tool descriptor** (hashed):
+**Tool descriptor** (hashed; optional keys omitted when absent):
 
 ```json
-{ "description": "<string>", "inputSchema": { }, "name": "<string>" }
+{
+  "annotations": { "readOnlyHint": true },
+  "description": "<string>",
+  "inputSchema": { },
+  "name": "<string>",
+  "outputSchema": { }
+}
 ```
+
+Known annotation hints: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`. Unknown keys are still hashed.
 
 ### 2.3 Resources
 
@@ -347,7 +361,7 @@ Exit codes same as verify (0 match, 1 drift, 2 error).
 
 ## 6. Structured field-diff (explanatory)
 
-Deterministic only — **no** LLM, embeddings, or fuzzy similarity. Classification does **not** affect exit codes.
+Deterministic only — **no** LLM, embeddings, or fuzzy similarity. Classification does **not** affect exit codes (0 match / 1 drift / 2 usage). Pass/fail is **digest equality only**.
 
 ### 6.1 Scope
 
@@ -355,24 +369,35 @@ When a lock entry embeds `surface` and the item digest changed, compare old `sur
 
 | Kind | Diff engine |
 |------|-------------|
-| tools | descriptor `description` + recursive JSON Schema diff on `inputSchema` |
+| tools | `description` + recursive JSON Schema diff on `inputSchema` / `outputSchema` + annotation hint diff |
 | resources | `uri` / `name` / `description` / `mimeType` field compares |
 | prompts | `description` + arguments matched **by name** |
 
-### 6.2 Output lines
+Never appear in diff paths: `annotations.title`, `tool.title`, `tool.icons`, `tool._meta`.
 
-Stable sorted by `path`, then `kind`. Each change:
+### 6.2 Taxonomy: COMPATIBLE | BREAKING | HINT_FLIP
 
-```
-ADDED|REMOVED|CHANGED <path> (BREAKING|non-breaking)
-        <old> -> <new>   # or + value / - value
-```
+JSON field changes carry a `kinds` **array** of taxonomy labels. Human lines print all kinds on the same path line.
 
-Paths use dotted JSON-ish form, e.g. `inputSchema.properties.text.type`, `inputSchema.required["lang"]`, `arguments["who"].required`.
+**Hint vs trust:** MCP `ToolAnnotations` are hints. Clients must not make tool-use decisions from untrusted servers. `HINT_FLIP` is explanatory client-hint drift, **not** a safety verdict. It is reserved for scarier or lost safety-leaning hints. Safer or newly asserted hints are `COMPATIBLE`. `outputSchema` is a structured I/O contract → classified `COMPATIBLE`|`BREAKING` only. **Hash is not safety.**
 
-### 6.3 Breaking vs non-breaking (deterministic rules)
+#### HINT_FLIP when
 
-**Breaking** (examples):
+- `readOnlyHint`: `true → false` or `true → absent`
+- `destructiveHint`: `false → true` or `false → absent`
+- `idempotentHint`: `true → false` or `true → absent`
+- `openWorldHint`: `false → true` or `false → absent`
+- unknown annotation key: added, removed, or changed
+
+Known-hint transitions **not** in that list → `COMPATIBLE` (still a digest change). Examples: `readOnlyHint` `false → true` / `absent → true`; `destructiveHint` `true → false`; `idempotentHint` `false → true`; `openWorldHint` `true → false`.
+
+Explicit value equal to an MCP default then omitted still changes the digest and stays `HINT_FLIP` this cut when the transition is in the list above (do not special-case default-equivalent omit as `COMPATIBLE`).
+
+#### outputSchema
+
+Classify with existing JSON Schema rules (`COMPATIBLE`|`BREAKING` only; **never** `HINT_FLIP`). Add or remove of `outputSchema` = `BREAKING`. Unknown schema keyword = `BREAKING`.
+
+#### Schema rules (inputSchema / outputSchema) — BREAKING examples
 
 - Remove a `properties` entry
 - Add a name to `required`
@@ -383,7 +408,7 @@ Paths use dotted JSON-ish form, e.g. `inputSchema.properties.text.type`, `inputS
 - Resource `mimeType` / `name` / `uri` change
 - Prompt argument removed; new required argument; `required: false → true`
 
-**Non-breaking** (examples):
+#### COMPATIBLE examples (schema / descriptor)
 
 - Add an optional property (not listed in `required`)
 - Remove a name from `required`
@@ -392,8 +417,22 @@ Paths use dotted JSON-ish form, e.g. `inputSchema.properties.text.type`, `inputS
 - `description` / `title` / `$comment` / `$id` / `examples` / `default` changes
 - Prompt argument description change; `required: true → false`; argument reorder only
 - Add optional prompt argument (`required: false`)
+- Safer / newly asserted known annotation hints (not in HINT_FLIP list)
 
-Unknown keyword value changes default to **breaking** (fail-closed classification). Meta keys listed above are always non-breaking.
+Unknown keyword value changes default to **BREAKING** (fail-closed). Meta keys listed above are always `COMPATIBLE`.
+
+`HINT_FLIP` may also be `BREAKING` on the same path → label both. Example `kinds`: `["HINT_FLIP"]`, `["BREAKING"]`, `["COMPATIBLE"]`, `["HINT_FLIP", "BREAKING"]`.
+
+### 6.3 Output lines
+
+Stable sorted by `path`, then change-kind. Each change:
+
+```
+ADDED|REMOVED|CHANGED <path> (HINT_FLIP|BREAKING|COMPATIBLE …)
+        <old> -> <new>   # or + value / - value
+```
+
+Paths use dotted JSON-ish form, e.g. `inputSchema.properties.text.type`, `annotations.readOnlyHint`, `outputSchema.properties.id.type`, `arguments["who"].required`.
 
 ---
 
@@ -420,13 +459,22 @@ treats that surface as **empty** and prints a clear stderr note.
 
 Streamable HTTP / SSE live fetch is not required for lockfile conformance.
 
-## 9. Explicitly out of scope
+## 9. Migration (1.3 → 1.4)
+
+- Old lockfiles (v1 / v2 / v3) still verify.
+- Digests **change** when a tool had kept annotation keys or `outputSchema`.
+- Digests stay **stable** when a tool had neither and only `title` / `icons` / `_meta` changed or were present.
+- **Re-lock after upgrading to ≥1.4** so embedded surfaces and digests include annotations / outputSchema.
+
+## 10. Explicitly out of scope
 
 - Signed lockfiles / provenance
 - Semantic or embedding “similarity” gates
-- Resource templates (`resources/templates/list`) — not pinned in 1.3
+- Resource templates (`resources/templates/list`) — not pinned
+- `initialize.instructions`
 - LLM / fuzzy schema matching
+- Materializing MCP annotation defaults into hashes
 
-## 10. Conformance
+## 11. Conformance
 
 Golden vectors under `testdata/` are normative for digests. Implementations MUST match those digests for the given inputs. Structured field-diff classification rules in §6 are normative for the reference CLI’s explanatory output.

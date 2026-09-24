@@ -88,7 +88,42 @@ export function normalizeTools(raw: ToolSurface[]): ToolDescriptor[] {
       inputSchema = t.inputSchema as Record<string, unknown>;
     }
 
-    out.push({ name: t.name, description, inputSchema });
+    // annotations: omit if absent/non-object; drop title; omit if empty after drop.
+    // Do not materialize MCP defaults into hashed fields.
+    let annotations: Record<string, unknown> | undefined;
+    const rawAnn = t.annotations;
+    if (rawAnn !== undefined && rawAnn !== null) {
+      if (!isPlainObject(rawAnn)) {
+        // Non-object annotations → omit key (same as absent)
+        annotations = undefined;
+      } else {
+        const kept: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(rawAnn)) {
+          if (k === "title") continue;
+          kept[k] = v;
+        }
+        if (Object.keys(kept).length > 0) {
+          annotations = kept;
+        }
+      }
+    }
+
+    // outputSchema: absent/null → omit; {} → include; non-object → usage error.
+    let outputSchema: Record<string, unknown> | undefined;
+    const rawOut = t.outputSchema;
+    if (rawOut !== undefined && rawOut !== null) {
+      if (!isPlainObject(rawOut)) {
+        throw new SurfacePinError(
+          `tools[${i}].outputSchema must be an object when present`,
+        );
+      }
+      outputSchema = rawOut as Record<string, unknown>;
+    }
+
+    const desc: ToolDescriptor = { name: t.name, description, inputSchema };
+    if (annotations !== undefined) desc.annotations = annotations;
+    if (outputSchema !== undefined) desc.outputSchema = outputSchema;
+    out.push(desc);
   }
 
   out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));

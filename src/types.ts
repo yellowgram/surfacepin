@@ -9,11 +9,15 @@ export const ALL_SURFACE_KINDS: readonly SurfaceKind[] = [
   "prompts",
 ] as const;
 
-/** MCP Tool fields used by SurfacePin. */
+/** MCP Tool fields used by SurfacePin (title/icons/_meta ignored). */
 export interface ToolSurface {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
+  /** Client hints; title dropped; absent/non-object omitted from hash. */
+  annotations?: unknown;
+  /** Structured output contract; absent/null omitted; {} kept; non-object → error. */
+  outputSchema?: unknown;
 }
 
 /** Normalized descriptor hashed for a single tool. */
@@ -21,6 +25,10 @@ export interface ToolDescriptor {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /** Present only when tool.annotations is an object with keys after dropping title. */
+  annotations?: Record<string, unknown>;
+  /** Present only when tool.outputSchema is a (possibly empty) object. */
+  outputSchema?: Record<string, unknown>;
 }
 
 /** MCP Resource fields used by SurfacePin (volatile fields ignored). */

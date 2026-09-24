@@ -28,7 +28,7 @@ describe("diffJsonSchema breaking / non-breaking", () => {
     assert.equal(changes.length, 1);
     assert.equal(changes[0].path, "properties.b");
     assert.equal(changes[0].kind, "added");
-    assert.equal(changes[0].severity, "non-breaking");
+    assert.deepEqual(changes[0].kinds, ["COMPATIBLE"]);
   });
 
   it("removing property is breaking", () => {
@@ -41,7 +41,7 @@ describe("diffJsonSchema breaking / non-breaking", () => {
       properties: { a: { type: "string" } },
     };
     const changes = diffJsonSchema(oldS, newS);
-    assert.ok(changes.some((c) => c.path === "properties.b" && c.kind === "removed" && c.severity === "breaking"));
+    assert.ok(changes.some((c) => c.path === "properties.b" && c.kind === "removed" && c.kinds.includes("BREAKING")));
   });
 
   it("adding to required is breaking", () => {
@@ -61,7 +61,7 @@ describe("diffJsonSchema breaking / non-breaking", () => {
         (c) =>
           c.path.includes("required") &&
           c.kind === "added" &&
-          c.severity === "breaking",
+          c.kinds.includes("BREAKING"),
       ),
     );
   });
@@ -83,7 +83,7 @@ describe("diffJsonSchema breaking / non-breaking", () => {
         (c) =>
           c.path.includes("required") &&
           c.kind === "removed" &&
-          c.severity === "non-breaking",
+          c.kinds.includes("COMPATIBLE"),
       ),
     );
   });
@@ -95,7 +95,7 @@ describe("diffJsonSchema breaking / non-breaking", () => {
     );
     assert.ok(
       narrow.some(
-        (c) => c.path === "type" && c.severity === "breaking",
+        (c) => c.path === "type" && c.kinds.includes("BREAKING"),
       ),
     );
     const widen = diffJsonSchema(
@@ -104,7 +104,7 @@ describe("diffJsonSchema breaking / non-breaking", () => {
     );
     assert.ok(
       widen.some(
-        (c) => c.path === "type" && c.severity === "non-breaking",
+        (c) => c.path === "type" && c.kinds.includes("COMPATIBLE"),
       ),
     );
   });
@@ -116,7 +116,7 @@ describe("diffJsonSchema breaking / non-breaking", () => {
     );
     assert.equal(changes.length, 1);
     assert.equal(changes[0].path, "description");
-    assert.equal(changes[0].severity, "non-breaking");
+    assert.deepEqual(changes[0].kinds, ["COMPATIBLE"]);
   });
 
   it("enum value removal is breaking; add is non-breaking", () => {
@@ -124,12 +124,12 @@ describe("diffJsonSchema breaking / non-breaking", () => {
       { enum: ["a", "b"] },
       { enum: ["a"] },
     );
-    assert.ok(rem.some((c) => c.kind === "removed" && c.severity === "breaking"));
+    assert.ok(rem.some((c) => c.kind === "removed" && c.kinds.includes("BREAKING")));
     const add = diffJsonSchema(
       { enum: ["a"] },
       { enum: ["a", "b"] },
     );
-    assert.ok(add.some((c) => c.kind === "added" && c.severity === "non-breaking"));
+    assert.ok(add.some((c) => c.kind === "added" && c.kinds.includes("COMPATIBLE")));
   });
 
   it("paths are sorted stably", () => {
@@ -172,14 +172,14 @@ describe("diffToolDescriptors / prompts", () => {
     const changes = diffToolDescriptors(oldD, newD);
     assert.ok(
       changes.some(
-        (c) => c.path === "description" && c.severity === "non-breaking",
+        (c) => c.path === "description" && c.kinds.includes("COMPATIBLE"),
       ),
     );
     assert.ok(
       changes.some(
         (c) =>
           c.path === "inputSchema.properties.x.type" &&
-          c.severity === "breaking",
+          c.kinds.includes("BREAKING"),
       ),
     );
   });
@@ -201,7 +201,7 @@ describe("diffToolDescriptors / prompts", () => {
         (c) =>
           c.path.includes("required") &&
           c.kind === "changed" &&
-          c.severity === "breaking",
+          c.kinds.includes("BREAKING"),
       ),
     );
   });
@@ -253,7 +253,7 @@ describe("lockfile v3 structured diff integration", () => {
       fields.some(
         (f) =>
           f.path === "inputSchema.properties.text.type" &&
-          f.severity === "breaking",
+          f.kinds.includes("BREAKING"),
       ),
     );
     assert.ok(
@@ -261,7 +261,7 @@ describe("lockfile v3 structured diff integration", () => {
         (f) =>
           f.path === "inputSchema.properties.lang" &&
           f.kind === "added" &&
-          f.severity === "non-breaking",
+          f.kinds.includes("COMPATIBLE"),
       ),
     );
     assert.ok(
@@ -269,19 +269,19 @@ describe("lockfile v3 structured diff integration", () => {
         (f) =>
           f.path.includes("required") &&
           f.kind === "added" &&
-          f.severity === "breaking",
+          f.kinds.includes("BREAKING"),
       ),
     );
     assert.ok(
       fields.some(
-        (f) => f.path === "description" && f.severity === "non-breaking",
+        (f) => f.path === "description" && f.kinds.includes("COMPATIBLE"),
       ),
     );
 
     const text = formatDiff(d);
     assert.match(text, /BREAKING/);
     assert.match(text, /inputSchema\.properties\.text\.type/);
-    assert.match(text, /non-breaking/);
+    assert.match(text, /COMPATIBLE/);
   });
 
   it("v1 lock still verifies by digest without field paths", () => {
@@ -344,18 +344,18 @@ describe("lockfile v3 structured diff integration", () => {
       {
         path: "inputSchema.properties.a",
         kind: "removed",
-        severity: "breaking",
+        kinds: ["BREAKING"],
         oldValue: '{"type":"string"}',
       },
       {
         path: "description",
         kind: "changed",
-        severity: "non-breaking",
+        kinds: ["COMPATIBLE"],
         oldValue: '"x"',
         newValue: '"y"',
       },
     ]);
     assert.ok(lines.some((l) => l.includes("BREAKING")));
-    assert.ok(lines.some((l) => l.includes("non-breaking")));
+    assert.ok(lines.some((l) => l.includes("COMPATIBLE")));
   });
 });
