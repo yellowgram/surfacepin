@@ -7,7 +7,7 @@ branding:
 
 inputs:
   tools-path:
-    description: Path to tools/list JSON (ListToolsResult-shaped or { "tools": [...] })
+    description: 'Path to tools/list JSON (ListToolsResult-shaped or { "tools": [...] })'
     required: true
   lockfile-path:
     description: Path to surfacepin.lock.json
