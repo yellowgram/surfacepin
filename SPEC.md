@@ -1,44 +1,124 @@
-# SurfacePin Lockfile Spec v1
+# SurfacePin Lockfile Spec
 
 Canonical specification for SurfacePin surface locking.
 CLI and Action are reference clients of this document.
 
-**Status:** v1 (2026-09-24)  
-**Scope:** MCP `tools/list` surface only (`name`, `description`, `inputSchema`).  
-**Wire format v1:** tools surface only. Live stdio adapter is out of band (CLI ≥1.1.0). Not in wire format: resources, prompts, signed lockfiles, semantic/embedding drift.
+**Status:** v1.2 (2026-09-24)  
+**Scope:** MCP `tools/list`, `resources/list`, and `prompts/list` surfaces.  
+**Wire formats:** lockfile **v1** (tools only) and **v2** (multi-surface).  
+**Not in wire format:** signed lockfiles, semantic/embedding drift, structured schema field-diff.
 
 ---
 
 ## 1. Goals
 
 1. **Exact hash** — pass/fail is deterministic byte comparison of digests.
-2. **Offline verify** — given a tools JSON file and a lockfile, no network.
+2. **Offline verify** — given a surface JSON file and a lockfile, no network.
 3. **Boring standards** — UTF-8, SHA-256, JSON; documented canonicalization.
-4. **Adapter-ready core** — lock over a generic *surface descriptor*; MCP tools are the first adapter.
+4. **Adapter-ready core** — lock over generic *surface descriptors*; MCP list results are adapters.
 
 ---
 
-## 2. Input shapes
+## 2. Surface kinds
 
-SurfacePin accepts either:
+| Kind | MCP method | Identity key | Hashed fields |
+|------|------------|--------------|---------------|
+| `tools` | `tools/list` | `name` | `name`, `description`, `inputSchema` |
+| `resources` | `resources/list` | `uri` | `uri`, `name`, `description`, `mimeType` |
+| `prompts` | `prompts/list` | `name` | `name`, `description`, `arguments` |
+
+Canonicalization algorithm id (unchanged): `"surfacepin-jcs-v1"`.
+
+### 2.1 Input shapes
+
+SurfacePin accepts a combined document:
 
 ```json
-{ "tools": [ /* Tool */ ] }
+{
+  "tools": [ /* Tool */ ],
+  "resources": [ /* Resource */ ],
+  "prompts": [ /* Prompt */ ]
+}
 ```
 
-or a full MCP `ListToolsResult`-shaped object that includes `tools` (other top-level fields ignored).
+or List*Result-shaped objects that include those keys (other top-level fields ignored).
+Selected kinds with a missing key are treated as an **empty array**.
 
-### 2.1 Tool fields used in v1
+### 2.2 Tools (unchanged from v1)
 
 | Field | Required | Notes |
 |-------|----------|-------|
 | `name` | yes | Non-empty string. Primary identity. |
-| `description` | no | If absent, treated as empty string `""` for hashing. |
-| `inputSchema` | no | If absent, treated as `{}` for hashing. Must be a JSON object when present. |
+| `description` | no | If absent, treated as `""`. |
+| `inputSchema` | no | If absent, treated as `{}`. Must be a JSON object when present. |
 
-All other tool fields (`annotations`, `outputSchema`, etc.) are **ignored** in v1.
-
+All other tool fields (`annotations`, `outputSchema`, etc.) are **ignored**.
 Duplicate `name` values are a **usage error** (exit 2).
+
+**Tool descriptor** (hashed):
+
+```json
+{ "description": "<string>", "inputSchema": { }, "name": "<string>" }
+```
+
+### 2.3 Resources
+
+MCP Resource shape fields that matter for drift. **Ignored** (volatile / non-identity): `size`, `annotations`, `title`, `icons`, `_meta`, and any other fields.
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `uri` | yes | Non-empty string. Primary identity. |
+| `name` | yes | Non-empty string. |
+| `description` | no | If absent, treated as `""`. |
+| `mimeType` | no | If absent, treated as `""`. |
+
+Duplicate `uri` values are a **usage error** (exit 2).
+
+**Resource descriptor** (hashed):
+
+```json
+{
+  "description": "<string>",
+  "mimeType": "<string>",
+  "name": "<string>",
+  "uri": "<string>"
+}
+```
+
+Sort resources by `uri` (UTF-16 code unit order) for the section root.
+
+### 2.4 Prompts
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `name` | yes | Non-empty string. Primary identity. |
+| `description` | no | If absent, treated as `""`. |
+| `arguments` | no | If absent, treated as `[]`. MCP PromptArgument list; **order preserved**. |
+
+Ignored: `title`, `icons`, `_meta`, and any other fields.
+Duplicate prompt `name` values are a **usage error** (exit 2).
+
+**PromptArgument** (each element normalized):
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `name` | yes | Non-empty string. |
+| `description` | no | If absent, treated as `""`. |
+| `required` | no | If absent, treated as `false`. |
+
+**Prompt descriptor** (hashed):
+
+```json
+{
+  "arguments": [
+    { "description": "<string>", "name": "<string>", "required": false }
+  ],
+  "description": "<string>",
+  "name": "<string>"
+}
+```
+
+Sort prompts by `name` for the section root. Argument array order is **not** sorted.
 
 ---
 
@@ -52,42 +132,21 @@ This is an **RFC 8785 JCS-compatible** deterministic JSON encoding for the JSON 
 
 1. **Encoding:** UTF-8. No BOM.
 2. **Whitespace:** None (no spaces, tabs, newlines between tokens).
-3. **Objects:**
-   - Keys sorted by UTF-16 code unit order (ECMAScript string `<` / `localeCompare` with undefined locales is **not** used; sort with `a < b` on JS strings, which is UTF-16 code unit lexicographic order — identical to UTF-8 byte order for BMP content typical in schemas; see note below).
-   - Actually for v1 we specify: **sort object keys by UTF-8 byte order** of the key string (after JSON string unescaping). For keys consisting only of BMP characters without unpaired surrogates, UTF-8 byte order matches UTF-16 code unit order for ASCII and most schema keys.
-   - Practical rule used by the reference implementation: sort keys with JavaScript `localeCompare` disabled — use `(a < b ? -1 : a > b ? 1 : 0)` which is UTF-16 code unit order. Documented as **UTF-16 code unit lexicographic order** (ECMAScript default string comparison). This matches RFC 8785 §3.2.3 for the BMP / no-surrogate keys used in MCP schemas.
+3. **Objects:** Keys sorted by UTF-16 code unit lexicographic order (ECMAScript default string comparison: `(a < b ? -1 : a > b ? 1 : 0)`).
 4. **Arrays:** Preserve order. Recursively canonicalize elements.
-5. **Strings:** JSON string encoding per ECMA-404 / RFC 8259 (`JSON.stringify` string rules): `"`, `\`, and control chars U+0000–U+001F escaped; other Unicode as literal UTF-8 in the output bytes after the JSON text is encoded as UTF-8.
+5. **Strings:** JSON string encoding per ECMA-404 / RFC 8259.
 6. **Booleans / null:** `true`, `false`, `null`.
-7. **Numbers:** ECMAScript `Number` serialization via the same rules as `JSON.stringify` for finite numbers (shortest round-trip decimal form). `NaN` / `±Infinity` are **not allowed** (usage error if present after parse).
-8. **No `undefined`:** JSON has no undefined; omit object members that would be undefined (standard JSON).
-
-### 3.2 Surface descriptor (per tool)
-
-For each tool, build a plain object:
-
-```json
-{
-  "description": "<string>",
-  "inputSchema": { /* object */ },
-  "name": "<string>"
-}
-```
-
-Keys appear in sorted order in the canonical form (`description`, `inputSchema`, `name`).
+7. **Numbers:** ECMAScript `Number` serialization via `JSON.stringify` rules for finite numbers. `NaN` / `±Infinity` are **not allowed**.
+8. **No `undefined`:** omit object members that would be undefined.
 
 Canonical bytes = UTF-8 encoding of `canonicalize(descriptor)`.
 
-### 3.3 Tool order for the root
+### 3.2 Digests
 
-Sort tools by `name` using **UTF-8 byte order** (equivalent to UTF-16 code unit order for typical MCP tool names: `[a-zA-Z0-9_-]`).
+- Item digest = lowercase hex SHA-256 of the item’s canonical UTF-8 bytes.
+- Section / overall roots use fixed concatenation (not JSON-canonicalized as a whole).
 
-### 3.4 Digests
-
-- `toolDigest` = lowercase hex SHA-256 of the tool’s canonical UTF-8 bytes.
-- `rootDigest` = lowercase hex SHA-256 of the **root payload** defined below.
-
-**Root payload** (not JSON-canonicalized as a whole — fixed concatenation to keep the root independent of lockfile pretty-printing):
+**Tools section root** (also lockfile v1 `root`):
 
 ```
 "surfacepin-v1\n" +
@@ -95,13 +154,41 @@ for each tool in name-sorted order:
   name + "\n" + toolDigest + "\n"
 ```
 
-Empty tools list → root over `"surfacepin-v1\n"` only.
+Empty tools → `"surfacepin-v1\n"` only.
+
+**Resources section root:**
+
+```
+"surfacepin-resources-v1\n" +
+for each resource in uri-sorted order:
+  uri + "\n" + resourceDigest + "\n"
+```
+
+**Prompts section root:**
+
+```
+"surfacepin-prompts-v1\n" +
+for each prompt in name-sorted order:
+  name + "\n" + promptDigest + "\n"
+```
+
+**Overall root (lockfile v2):**
+
+```
+"surfacepin-v2\n" +
+for each selected kind in fixed order [tools, resources, prompts]:
+  kind + "\n" + sectionRoot + "\n"
+```
+
+Only selected (present) sections are included.
 
 ---
 
-## 4. Lockfile format v1
+## 4. Lockfile formats
 
-File: typically `surfacepin.lock.json` (name is conventional, not mandated).
+### 4.1 Lockfile v1 — tools only
+
+Written when the selected surface is **tools only** (CLI default). Unchanged from SurfacePin 1.0/1.1.
 
 ```json
 {
@@ -110,58 +197,53 @@ File: typically `surfacepin.lock.json` (name is conventional, not mandated).
   "canonicalization": "surfacepin-jcs-v1",
   "root": "<64 lowercase hex chars>",
   "tools": [
-    {
-      "name": "<tool name>",
-      "digest": "<64 lowercase hex chars>"
-    }
+    { "name": "<tool name>", "digest": "<64 lowercase hex chars>" }
   ]
 }
 ```
 
-### 4.1 Field rules
+`tools` sorted by `name`. `root` = tools section root.
 
-| Field | Type | Rule |
-|-------|------|------|
-| `version` | number | Must be `1` for this spec. |
-| `algorithm` | string | Must be `"sha256"`. |
-| `canonicalization` | string | Must be `"surfacepin-jcs-v1"`. |
-| `root` | string | 64 lowercase hex chars; must equal recomputed root. |
-| `tools` | array | Sorted by `name` (UTF-8 / UTF-16 code unit order). Each entry has `name` + `digest`. |
+### 4.2 Lockfile v2 — multi-surface
 
-Unknown top-level fields: **ignored** by v1 verifiers (forward compatible).  
-Missing required fields: **usage / format error**.
-
-Lockfiles **should** be written with stable formatting: 2-space indent, trailing newline, tools already sorted (human-diff friendly). Formatting of the lockfile file itself is **not** hashed; only digests matter.
-
-### 4.2 JSON Schema (informative)
+Written when any non-tools surface is selected (or tools combined with others).
+Only selected sections are present. Each section has its own `root` + `entries`.
 
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/yellowgram/surfacepin/schemas/lockfile-v1.json",
-  "type": "object",
-  "required": ["version", "algorithm", "canonicalization", "root", "tools"],
-  "properties": {
-    "version": { "const": 1 },
-    "algorithm": { "const": "sha256" },
-    "canonicalization": { "const": "surfacepin-jcs-v1" },
-    "root": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "tools": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["name", "digest"],
-        "properties": {
-          "name": { "type": "string", "minLength": 1 },
-          "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
-        },
-        "additionalProperties": true
-      }
-    }
+  "version": 2,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v1",
+  "root": "<overall root>",
+  "tools": {
+    "root": "<tools section root>",
+    "entries": [{ "name": "<tool name>", "digest": "<hex>" }]
   },
-  "additionalProperties": true
+  "resources": {
+    "root": "<resources section root>",
+    "entries": [{ "uri": "<resource uri>", "digest": "<hex>" }]
+  },
+  "prompts": {
+    "root": "<prompts section root>",
+    "entries": [{ "name": "<prompt name>", "digest": "<hex>" }]
+  }
 }
 ```
+
+| Field | Rule |
+|-------|------|
+| `version` | Must be `2`. |
+| `algorithm` | `"sha256"`. |
+| `canonicalization` | `"surfacepin-jcs-v1"`. |
+| `root` | Overall v2 root over present sections. |
+| `tools` / `resources` / `prompts` | Optional; at least one required. |
+
+Unknown top-level fields: **ignored** (forward compatible).  
+Missing required fields: **usage / format error**.
+
+Lockfiles **should** use 2-space indent + trailing newline. File formatting is **not** hashed.
+
+**Compatibility:** Verifiers MUST accept both v1 and v2. Tools item digests and the tools section root are identical across v1 `root` and v2 `tools.root` for the same tools list.
 
 ---
 
@@ -169,18 +251,18 @@ Lockfiles **should** be written with stable formatting: 2-space indent, trailing
 
 ### 5.1 `lock`
 
-1. Parse tools JSON.
-2. Normalize tools → descriptors; reject duplicates / invalid.
-3. Compute per-tool digests + root.
-4. Write lockfile JSON.
+1. Parse surface JSON (or live adapter output) for selected kinds.
+2. Normalize → descriptors; reject duplicates / invalid.
+3. Compute per-item digests + section roots (+ overall root if v2).
+4. Write lockfile JSON (v1 if tools-only; else v2).
 
 Exit `0` on success, `2` on usage/parse error.
 
 ### 5.2 `verify`
 
-1. Parse tools JSON + lockfile.
-2. Recompute digests from tools JSON.
-3. Compare to lockfile: root and each named tool digest; detect added/removed names.
+1. Parse surface JSON + lockfile.
+2. Recompute digests for lockfile’s surfaces (selection must match lock sections).
+3. Compare section roots, overall root, and each named/uri entry; detect added/removed ids.
 
 Exit `0` if exact match, `1` if drift, `2` on usage/parse/format error.
 
@@ -188,10 +270,10 @@ Exit `0` if exact match, `1` if drift, `2` on usage/parse/format error.
 
 Same computation as verify; always print human-readable summary:
 
-- `ADDED` tool names
-- `REMOVED` tool names
-- `CHANGED` tool names (digest mismatch) with old → new digest
-- `ROOT` old → new if different
+- Per surface kind (when multi): `[tools]`, `[resources]`, `[prompts]`
+- `ADDED` / `REMOVED` / `CHANGED` ids (digest mismatch) with old → new digest
+- `SECTION` old → new if section root differs
+- `ROOT` old → new if overall root differs
 
 Exit codes same as verify (0 match, 1 drift, 2 error).
 
@@ -210,19 +292,22 @@ Exit codes same as verify (0 match, 1 drift, 2 error).
 ## 7. Adapters (out of band)
 
 Live MCP clients (stdio, etc.) are **reference adapters** that produce the input
-shape in §2. They are **not** part of the lockfile wire format. Digests and
-lockfile v1 are unchanged whether tools arrived from a file or from
-`tools/list` over stdio.
+shape in §2. They are **not** part of the lockfile wire format.
 
 The reference CLI supports `surfacepin … --stdio -- <command> [args…]` (package
-≥1.1.0). Streamable HTTP / SSE live fetch is not required for lockfile conformance.
+≥1.1.0) and `--surface tools,resources,prompts` (package ≥1.2.0). After
+initialize, the adapter calls `tools/list`, `resources/list`, and/or
+`prompts/list` as selected. If the server omits a capability, the adapter
+treats that surface as **empty** and prints a clear stderr note.
 
-## 8. Post-v1 (explicitly out of scope for the wire format)
+Streamable HTTP / SSE live fetch is not required for lockfile conformance.
 
-- Pinning `resources/list` / `prompts/list`
+## 8. Explicitly out of scope
+
 - Structured schema field-level diffs
 - Signed lockfiles / provenance
 - Semantic or embedding “similarity” gates
+- Resource templates (`resources/templates/list`) — not pinned in 1.2
 
 ---
 

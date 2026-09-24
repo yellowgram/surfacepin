@@ -1,15 +1,51 @@
 export { canonicalize, canonicalizeToBytes } from "./canonicalize.js";
-export { sha256Hex, toolDigest, rootDigest } from "./hash.js";
-export { extractTools, normalizeTools } from "./normalize.js";
-export { computeSurface, serializeLockfile } from "./lock.js";
-export { parseLockfile, diffSurface, formatDiff } from "./verify.js";
-export { fetchToolsViaStdio } from "./mcp-stdio.js";
+export {
+  sha256Hex,
+  toolDigest,
+  resourceDigest,
+  promptDigest,
+  rootDigest,
+  resourcesSectionRoot,
+  promptsSectionRoot,
+  overallRootDigestV2,
+  sectionRootDigest,
+} from "./hash.js";
+export {
+  extractTools,
+  extractSurfaces,
+  normalizeTools,
+  normalizeResources,
+  normalizePrompts,
+} from "./normalize.js";
+export type { SurfaceDoc } from "./normalize.js";
+export { computeSurface, computeFromExtracted, serializeLockfile } from "./lock.js";
+export {
+  parseLockfile,
+  lockfileKinds,
+  diffSurface,
+  formatDiff,
+} from "./verify.js";
+export { fetchToolsViaStdio, fetchSurfacesViaStdio } from "./mcp-stdio.js";
 export type { StdioFetchOptions, ToolsListDoc } from "./mcp-stdio.js";
 export type {
+  SurfaceKind,
   ToolSurface,
   ToolDescriptor,
+  ResourceSurface,
+  ResourceDescriptor,
+  PromptSurface,
+  PromptDescriptor,
+  PromptArgumentSurface,
+  PromptArgumentDescriptor,
   LockToolEntry,
+  LockNameEntry,
+  LockUriEntry,
+  LockNameSection,
+  LockUriSection,
   LockfileV1,
+  LockfileV2,
+  Lockfile,
   DiffResult,
+  SurfaceDiff,
 } from "./types.js";
-export { SurfacePinError } from "./types.js";
+export { SurfacePinError, ALL_SURFACE_KINDS } from "./types.js";

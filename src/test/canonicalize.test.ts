@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { canonicalize } from "../canonicalize.js";
-import { sha256Hex, toolDigest, rootDigest } from "../hash.js";
+import {
+  sha256Hex,
+  toolDigest,
+  resourceDigest,
+  promptDigest,
+  rootDigest,
+} from "../hash.js";
 import { computeSurface } from "../lock.js";
 import { diffSurface, parseLockfile } from "../verify.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import type { LockfileV1 } from "../types.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const testdata = join(here, "..", "..", "testdata");
@@ -72,6 +79,46 @@ describe("digests", () => {
     assert.equal(toolDigest(d), expected);
   });
 
+  it("resourceDigest hashes uri/name/description/mimeType", () => {
+    const d = {
+      uri: "file:///a",
+      name: "a",
+      description: "d",
+      mimeType: "text/plain",
+    };
+    const expected = sha256Hex(
+      Buffer.from(
+        canonicalize({
+          description: d.description,
+          mimeType: d.mimeType,
+          name: d.name,
+          uri: d.uri,
+        }),
+        "utf8",
+      ),
+    );
+    assert.equal(resourceDigest(d), expected);
+  });
+
+  it("promptDigest hashes name/description/arguments", () => {
+    const d = {
+      name: "p",
+      description: "d",
+      arguments: [{ name: "x", description: "", required: true }],
+    };
+    const expected = sha256Hex(
+      Buffer.from(
+        canonicalize({
+          arguments: [{ description: "", name: "x", required: true }],
+          description: "d",
+          name: "p",
+        }),
+        "utf8",
+      ),
+    );
+    assert.equal(promptDigest(d), expected);
+  });
+
   it("rootDigest uses fixed concatenation", () => {
     const tools = [
       { name: "b", digest: "bb".repeat(32) },
@@ -118,7 +165,7 @@ describe("golden vectors", () => {
     const ca = computeSurface(a);
     const cb = computeSurface(b);
     assert.equal(ca.root, cb.root);
-    assert.equal(ca.tools[0].digest, cb.tools[0].digest);
+    assert.equal(ca.tools!.entries[0].digest, cb.tools!.entries[0].digest);
   });
 
   it("tool array/object key order does not affect digest", () => {
@@ -146,6 +193,62 @@ describe("golden vectors", () => {
       ],
     };
     assert.equal(computeSurface(pretty).root, computeSurface(shuffled).root);
+  });
+
+  it("multi-surface golden matches lockfile v2", () => {
+    const surface = JSON.parse(
+      readFileSync(join(testdata, "basic.surface.json"), "utf8"),
+    );
+    const golden = JSON.parse(
+      readFileSync(join(testdata, "basic.multi.lock.json"), "utf8"),
+    );
+    const { lockfile } = computeSurface(surface, [
+      "tools",
+      "resources",
+      "prompts",
+    ]);
+    assert.deepEqual(lockfile, golden);
+    assert.equal(lockfile.version, 2);
+  });
+
+  it("resource/prompt field order does not affect digests", () => {
+    const a = {
+      resources: [
+        {
+          mimeType: "text/plain",
+          description: "d",
+          name: "n",
+          uri: "file:///z",
+        },
+      ],
+      prompts: [
+        {
+          arguments: [{ required: true, name: "x", description: "dx" }],
+          description: "pd",
+          name: "p",
+        },
+      ],
+    };
+    const b = {
+      resources: [
+        {
+          uri: "file:///z",
+          name: "n",
+          description: "d",
+          mimeType: "text/plain",
+        },
+      ],
+      prompts: [
+        {
+          name: "p",
+          description: "pd",
+          arguments: [{ name: "x", description: "dx", required: true }],
+        },
+      ],
+    };
+    const ca = computeSurface(a, ["resources", "prompts"]);
+    const cb = computeSurface(b, ["resources", "prompts"]);
+    assert.equal(ca.root, cb.root);
   });
 });
 
@@ -193,8 +296,10 @@ describe("verify / diff", () => {
   it("defaults missing description and inputSchema", () => {
     const doc = { tools: [{ name: "bare" }] };
     const { lockfile } = computeSurface(doc);
-    assert.equal(lockfile.tools.length, 1);
-    assert.equal(lockfile.tools[0].name, "bare");
+    assert.equal(lockfile.version, 1);
+    const v1 = lockfile as LockfileV1;
+    assert.equal(v1.tools.length, 1);
+    assert.equal(v1.tools[0].name, "bare");
     const doc2 = {
       tools: [{ name: "bare", description: "", inputSchema: {} }],
     };
@@ -205,6 +310,64 @@ describe("verify / diff", () => {
     assert.throws(
       () => computeSurface({ tools: [{ name: "a" }, { name: "a" }] }),
       /duplicate/,
+    );
+  });
+
+  it("multi-surface diff reports which surface drifted", () => {
+    const surface = JSON.parse(
+      readFileSync(join(testdata, "basic.surface.json"), "utf8"),
+    );
+    const lock = parseLockfile(
+      JSON.parse(readFileSync(join(testdata, "basic.multi.lock.json"), "utf8")),
+    );
+    const drifted = structuredClone(surface) as {
+      tools: Array<{ name: string; description: string }>;
+      resources: Array<{ uri: string; description: string }>;
+      prompts: Array<{ name: string; description: string }>;
+    };
+    drifted.resources[0].description = "CHANGED RESOURCE";
+    drifted.prompts[0].description = "CHANGED PROMPT";
+    const d = diffSurface(drifted, lock, ["tools", "resources", "prompts"]);
+    assert.equal(d.match, false);
+    const byKind = Object.fromEntries(d.surfaces.map((s) => [s.kind, s]));
+    assert.equal(byKind.tools.match, true);
+    assert.equal(byKind.resources.match, false);
+    assert.equal(byKind.prompts.match, false);
+    assert.equal(byKind.resources.changed.length, 1);
+    assert.equal(byKind.resources.changed[0].id, "file:///docs/readme.md");
+  });
+
+  it("resource defaults for missing description/mimeType", () => {
+    const a = {
+      resources: [{ uri: "file:///x", name: "x" }],
+    };
+    const b = {
+      resources: [
+        { uri: "file:///x", name: "x", description: "", mimeType: "" },
+      ],
+    };
+    assert.equal(
+      computeSurface(a, ["resources"]).root,
+      computeSurface(b, ["resources"]).root,
+    );
+  });
+
+  it("prompt argument defaults", () => {
+    const a = {
+      prompts: [{ name: "p", arguments: [{ name: "x" }] }],
+    };
+    const b = {
+      prompts: [
+        {
+          name: "p",
+          description: "",
+          arguments: [{ name: "x", description: "", required: false }],
+        },
+      ],
+    };
+    assert.equal(
+      computeSurface(a, ["prompts"]).root,
+      computeSurface(b, ["prompts"]).root,
     );
   });
 });

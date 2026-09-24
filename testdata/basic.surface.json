@@ -1,0 +1,52 @@
+{
+  "tools": [
+    {
+      "name": "echo",
+      "description": "Echo text back",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string", "description": "Text to echo" }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "ping",
+      "description": "Health check",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "file:///docs/readme.md",
+      "name": "readme",
+      "description": "Project readme",
+      "mimeType": "text/markdown"
+    },
+    {
+      "uri": "file:///data/config.json",
+      "name": "config",
+      "description": "Config file",
+      "mimeType": "application/json"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "greet",
+      "description": "Greeting prompt",
+      "arguments": [
+        { "name": "who", "description": "Who to greet", "required": true },
+        { "name": "tone", "description": "Tone", "required": false }
+      ]
+    },
+    {
+      "name": "summarize",
+      "description": "Summarize text",
+      "arguments": [{ "name": "text", "required": true }]
+    }
+  ]
+}

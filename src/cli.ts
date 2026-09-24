@@ -1,27 +1,37 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
 import { computeSurface, serializeLockfile } from "./lock.js";
-import { fetchToolsViaStdio } from "./mcp-stdio.js";
-import { SurfacePinError } from "./types.js";
+import { fetchSurfacesViaStdio } from "./mcp-stdio.js";
+import {
+  ALL_SURFACE_KINDS,
+  SurfacePinError,
+  type SurfaceKind,
+} from "./types.js";
 import { diffSurface, formatDiff, parseLockfile } from "./verify.js";
 
 function usage(): never {
-  console.error(`surfacepin — lock exact hashes of an MCP tools/list surface
+  console.error(`surfacepin — lock exact hashes of MCP tools/resources/prompts surfaces
 
 Usage:
-  surfacepin lock   <tools.json> [-o <lockfile>]
-  surfacepin lock   --stdio -- <command> [args...] [-o <lockfile>]
-  surfacepin verify <tools.json> <lockfile>
-  surfacepin verify --stdio <lockfile> -- <command> [args...]
-  surfacepin diff   <tools.json> <lockfile>
-  surfacepin diff   --stdio <lockfile> -- <command> [args...]
+  surfacepin lock   <surface.json> [-o <lockfile>] [--surface tools[,resources][,prompts]]
+  surfacepin lock   --stdio -- <command> [args...] [-o <lockfile>] [--surface ...]
+  surfacepin verify <surface.json> <lockfile> [--surface ...]
+  surfacepin verify --stdio <lockfile> -- <command> [args...] [--surface ...]
+  surfacepin diff   <surface.json> <lockfile> [--surface ...]
+  surfacepin diff   --stdio <lockfile> -- <command> [args...] [--surface ...]
 
-Live --stdio spawns an MCP server, calls tools/list, then locks/verifies.
-Offline file mode still works (CI / Action stay file-based).
+--surface defaults to "tools" (lockfile v1, backward compatible).
+Include resources/prompts to write lockfile v2 with section roots + overall root.
+
+File mode accepts a combined dump: { "tools": [...], "resources": [...], "prompts": [...] }
+(or List*Result-shaped objects with those keys). Missing selected keys → empty.
+
+Live --stdio calls tools/list, resources/list, prompts/list as selected.
+Servers lacking a capability → empty list + stderr note.
 
 Exit codes: 0 match/ok, 1 drift, 2 usage/error
 
-See SPEC.md for canonicalization and lockfile format v1.`);
+See SPEC.md for canonicalization and lockfile formats v1/v2.`);
   process.exit(2);
 }
 
@@ -43,10 +53,37 @@ function readJson(path: string): unknown {
   }
 }
 
+function parseSurfaceFlag(raw: string): SurfaceKind[] {
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    throw new SurfacePinError("--surface requires at least one kind");
+  }
+  const seen = new Set<SurfaceKind>();
+  const out: SurfaceKind[] = [];
+  for (const p of parts) {
+    if (!(ALL_SURFACE_KINDS as readonly string[]).includes(p)) {
+      throw new SurfacePinError(
+        `unknown surface kind "${p}" (expected tools, resources, prompts)`,
+      );
+    }
+    const k = p as SurfaceKind;
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(k);
+    }
+  }
+  // Stable order: tools, resources, prompts
+  return ALL_SURFACE_KINDS.filter((k) => seen.has(k));
+}
+
 interface ParsedArgs {
   cmd: "lock" | "verify" | "diff";
   stdio: boolean;
-  toolsPath?: string;
+  surfaces: SurfaceKind[];
+  surfacePath?: string;
   lockPath?: string;
   outPath?: string;
   /** [executable, ...args] when --stdio */
@@ -61,6 +98,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   let stdio = false;
   let outPath: string | undefined;
+  let surfaces: SurfaceKind[] = ["tools"];
   const positional: string[] = [];
   let command: string[] | undefined;
 
@@ -72,6 +110,16 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
     if (a === "--stdio") {
       stdio = true;
+      continue;
+    }
+    if (a === "--surface" || a === "-s") {
+      const v = args[++i];
+      if (!v) usage();
+      surfaces = parseSurfaceFlag(v);
+      continue;
+    }
+    if (a.startsWith("--surface=")) {
+      surfaces = parseSurfaceFlag(a.slice("--surface=".length));
       continue;
     }
     if (a === "-o" || a === "--output") {
@@ -90,12 +138,13 @@ function parseArgs(argv: string[]): ParsedArgs {
       return {
         cmd,
         stdio: true,
+        surfaces,
         command,
         outPath: outPath ?? "surfacepin.lock.json",
       };
     }
     if (positional.length !== 1 || outPath) usage();
-    return { cmd, stdio: true, command, lockPath: positional[0] };
+    return { cmd, stdio: true, surfaces, command, lockPath: positional[0] };
   }
 
   if (command) usage();
@@ -104,7 +153,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     return {
       cmd,
       stdio: false,
-      toolsPath: positional[0],
+      surfaces,
+      surfacePath: positional[0],
       outPath: outPath ?? "surfacepin.lock.json",
     };
   }
@@ -112,36 +162,46 @@ function parseArgs(argv: string[]): ParsedArgs {
   return {
     cmd,
     stdio: false,
-    toolsPath: positional[0],
+    surfaces,
+    surfacePath: positional[0],
     lockPath: positional[1],
   };
 }
 
-async function loadToolsDoc(opts: ParsedArgs): Promise<unknown> {
+async function loadSurfaceDoc(opts: ParsedArgs): Promise<unknown> {
   if (opts.stdio) {
     const [exe, ...args] = opts.command!;
-    return fetchToolsViaStdio({ command: exe, args });
+    return fetchSurfacesViaStdio({
+      command: exe,
+      args,
+      surfaces: opts.surfaces,
+    });
   }
-  return readJson(opts.toolsPath!);
+  return readJson(opts.surfacePath!);
 }
 
 async function main(): Promise<void> {
   try {
     const opts = parseArgs(process.argv);
-    const doc = await loadToolsDoc(opts);
+    const doc = await loadSurfaceDoc(opts);
 
     if (opts.cmd === "lock") {
-      const { lockfile, root, tools } = computeSurface(doc);
+      const { lockfile, root, tools, resources, prompts } = computeSurface(
+        doc,
+        opts.surfaces,
+      );
       const text = serializeLockfile(lockfile);
       writeFileSync(opts.outPath!, text, "utf8");
       console.log(`Wrote ${opts.outPath}`);
       console.log(`ROOT ${root}`);
-      console.log(`TOOLS ${tools.length}`);
+      if (tools) console.log(`TOOLS ${tools.entries.length}`);
+      if (resources) console.log(`RESOURCES ${resources.entries.length}`);
+      if (prompts) console.log(`PROMPTS ${prompts.entries.length}`);
       process.exit(0);
     }
 
     const lock = parseLockfile(readJson(opts.lockPath!));
-    const diff = diffSurface(doc, lock);
+    const diff = diffSurface(doc, lock, opts.surfaces);
     console.log(formatDiff(diff));
     process.exit(diff.match ? 0 : 1);
   } catch (e) {
