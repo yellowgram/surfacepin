@@ -1,7 +1,7 @@
 {
   "name": "surfacepin",
-  "version": "1.2.0",
-  "description": "Lock exact hashes of MCP tools/resources/prompts list surfaces; fail CI on silent drift. Offline files or live --stdio.",
+  "version": "1.3.0",
+  "description": "Lock exact hashes of MCP tools/resources/prompts list surfaces; fail CI on silent drift. Offline files or live --stdio. Lockfile v3 structured schema field-diff.",
   "license": "MIT",
   "author": "yellowgram",
   "type": "module",

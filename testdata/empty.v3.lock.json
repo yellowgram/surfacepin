@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v1",
+  "root": "63c8b9e912f788ab780496a0eb68194d60e6b2e2b0d3e08cb32d90365443063d",
+  "tools": {
+    "root": "9a3a04c73b95acd749b45a315af09fa924d55693d6dbf2050adfc975727261ad",
+    "entries": []
+  }
+}

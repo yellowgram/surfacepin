@@ -3,10 +3,10 @@
 Canonical specification for SurfacePin surface locking.
 CLI and Action are reference clients of this document.
 
-**Status:** v1.2 (2026-09-24)  
+**Status:** v1.3 (2026-09-24)  
 **Scope:** MCP `tools/list`, `resources/list`, and `prompts/list` surfaces.  
-**Wire formats:** lockfile **v1** (tools only) and **v2** (multi-surface).  
-**Not in wire format:** signed lockfiles, semantic/embedding drift, structured schema field-diff.
+**Wire formats:** lockfile **v1** (tools digests), **v2** (multi-surface digests), **v3** (multi-surface + embedded hashed payloads for structured field-diff).  
+**Not in wire format:** signed lockfiles, semantic/embedding drift, LLM-assisted diff.
 
 ---
 
@@ -16,6 +16,7 @@ CLI and Action are reference clients of this document.
 2. **Offline verify** — given a surface JSON file and a lockfile, no network.
 3. **Boring standards** — UTF-8, SHA-256, JSON; documented canonicalization.
 4. **Adapter-ready core** — lock over generic *surface descriptors*; MCP list results are adapters.
+5. **Explanatory field-diff** — on digest mismatch, optionally explain *what* changed via deterministic JSON Schema / descriptor path diffs (lockfile v3). Never affects pass/fail.
 
 ---
 
@@ -172,7 +173,7 @@ for each prompt in name-sorted order:
   name + "\n" + promptDigest + "\n"
 ```
 
-**Overall root (lockfile v2):**
+**Overall root (lockfile v2 / v3):**
 
 ```
 "surfacepin-v2\n" +
@@ -180,15 +181,15 @@ for each selected kind in fixed order [tools, resources, prompts]:
   kind + "\n" + sectionRoot + "\n"
 ```
 
-Only selected (present) sections are included.
+Only selected (present) sections are included. Digests and roots are **identical** across v2 and v3 for the same surface content; v3 only adds embedded payloads.
 
 ---
 
 ## 4. Lockfile formats
 
-### 4.1 Lockfile v1 — tools only
+### 4.1 Lockfile v1 — tools only (legacy write; still verified)
 
-Written when the selected surface is **tools only** (CLI default). Unchanged from SurfacePin 1.0/1.1.
+Written by SurfacePin ≤1.2 when the selected surface was **tools only**.
 
 ```json
 {
@@ -204,9 +205,9 @@ Written when the selected surface is **tools only** (CLI default). Unchanged fro
 
 `tools` sorted by `name`. `root` = tools section root.
 
-### 4.2 Lockfile v2 — multi-surface
+### 4.2 Lockfile v2 — multi-surface digests (legacy write; still verified)
 
-Written when any non-tools surface is selected (or tools combined with others).
+Written by SurfacePin 1.2 when any non-tools surface was selected.
 Only selected sections are present. Each section has its own `root` + `entries`.
 
 ```json
@@ -230,20 +231,80 @@ Only selected sections are present. Each section has its own `root` + `entries`.
 }
 ```
 
+### 4.3 Lockfile v3 — multi-surface + embedded surfaces (current write)
+
+**Written by SurfacePin ≥1.3 for all new locks** (including tools-only).
+Same section/root digest rules as v2. Each entry includes `surface`: the **exact** object that was hashed (tool / resource / prompt descriptor). This enables offline structured field-diff without a second baseline file.
+
+```json
+{
+  "version": 3,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v1",
+  "root": "<overall root>",
+  "tools": {
+    "root": "<tools section root>",
+    "entries": [
+      {
+        "name": "echo",
+        "digest": "<hex>",
+        "surface": {
+          "description": "...",
+          "inputSchema": { },
+          "name": "echo"
+        }
+      }
+    ]
+  },
+  "resources": {
+    "root": "<resources section root>",
+    "entries": [
+      {
+        "uri": "file:///x",
+        "digest": "<hex>",
+        "surface": {
+          "description": "...",
+          "mimeType": "...",
+          "name": "...",
+          "uri": "file:///x"
+        }
+      }
+    ]
+  },
+  "prompts": {
+    "root": "<prompts section root>",
+    "entries": [
+      {
+        "name": "greet",
+        "digest": "<hex>",
+        "surface": {
+          "arguments": [
+            { "description": "...", "name": "who", "required": true }
+          ],
+          "description": "...",
+          "name": "greet"
+        }
+      }
+    ]
+  }
+}
+```
+
 | Field | Rule |
 |-------|------|
-| `version` | Must be `2`. |
+| `version` | Must be `3`. |
 | `algorithm` | `"sha256"`. |
 | `canonicalization` | `"surfacepin-jcs-v1"`. |
-| `root` | Overall v2 root over present sections. |
+| `root` | Overall root over present sections (same algorithm as v2). |
 | `tools` / `resources` / `prompts` | Optional; at least one required. |
+| `entries[].surface` | Required when writing v3; exact hashed descriptor. |
 
 Unknown top-level fields: **ignored** (forward compatible).  
 Missing required fields: **usage / format error**.
 
 Lockfiles **should** use 2-space indent + trailing newline. File formatting is **not** hashed.
 
-**Compatibility:** Verifiers MUST accept both v1 and v2. Tools item digests and the tools section root are identical across v1 `root` and v2 `tools.root` for the same tools list.
+**Compatibility:** Verifiers MUST accept v1, v2, and v3. Item digests and section roots are identical across versions for the same surface content. Overall root for tools-only v3 uses the v2 overall-root algorithm (differs from v1 `root`, which is the tools section root alone).
 
 ---
 
@@ -253,8 +314,8 @@ Lockfiles **should** use 2-space indent + trailing newline. File formatting is *
 
 1. Parse surface JSON (or live adapter output) for selected kinds.
 2. Normalize → descriptors; reject duplicates / invalid.
-3. Compute per-item digests + section roots (+ overall root if v2).
-4. Write lockfile JSON (v1 if tools-only; else v2).
+3. Compute per-item digests + section roots + overall root.
+4. Write lockfile JSON **v3** with embedded `surface` payloads.
 
 Exit `0` on success, `2` on usage/parse error.
 
@@ -262,7 +323,9 @@ Exit `0` on success, `2` on usage/parse error.
 
 1. Parse surface JSON + lockfile.
 2. Recompute digests for lockfile’s surfaces (selection must match lock sections).
-3. Compare section roots, overall root, and each named/uri entry; detect added/removed ids.
+3. Compare section roots, overall/root, and each named/uri entry; detect added/removed ids.
+
+Pass/fail is **digest equality only**. Embedded surfaces are not required for verify.
 
 Exit `0` if exact match, `1` if drift, `2` on usage/parse/format error.
 
@@ -272,14 +335,69 @@ Same computation as verify; always print human-readable summary:
 
 - Per surface kind (when multi): `[tools]`, `[resources]`, `[prompts]`
 - `ADDED` / `REMOVED` / `CHANGED` ids (digest mismatch) with old → new digest
+- For `CHANGED` items when the lockfile entry has `surface` (v3): path-level field changes (see §6)
 - `SECTION` old → new if section root differs
-- `ROOT` old → new if overall root differs
+- `ROOT` old → new if overall/root differs
+
+Optional `--json` emits the structured `DiffResult` object (including `fields` arrays).
 
 Exit codes same as verify (0 match, 1 drift, 2 error).
 
 ---
 
-## 6. Exit codes (CLI)
+## 6. Structured field-diff (explanatory)
+
+Deterministic only — **no** LLM, embeddings, or fuzzy similarity. Classification does **not** affect exit codes.
+
+### 6.1 Scope
+
+When a lock entry embeds `surface` and the item digest changed, compare old `surface` vs the newly computed descriptor:
+
+| Kind | Diff engine |
+|------|-------------|
+| tools | descriptor `description` + recursive JSON Schema diff on `inputSchema` |
+| resources | `uri` / `name` / `description` / `mimeType` field compares |
+| prompts | `description` + arguments matched **by name** |
+
+### 6.2 Output lines
+
+Stable sorted by `path`, then `kind`. Each change:
+
+```
+ADDED|REMOVED|CHANGED <path> (BREAKING|non-breaking)
+        <old> -> <new>   # or + value / - value
+```
+
+Paths use dotted JSON-ish form, e.g. `inputSchema.properties.text.type`, `inputSchema.required["lang"]`, `arguments["who"].required`.
+
+### 6.3 Breaking vs non-breaking (deterministic rules)
+
+**Breaking** (examples):
+
+- Remove a `properties` entry
+- Add a name to `required`
+- Narrow `type` (remove an allowed type, or replace with a disjoint type)
+- Remove an `enum` value; change `const`
+- Tighten numeric/length constraints (`minimum`↑, `maximum`↓, `minLength`↑, …)
+- `additionalProperties: true → false`
+- Resource `mimeType` / `name` / `uri` change
+- Prompt argument removed; new required argument; `required: false → true`
+
+**Non-breaking** (examples):
+
+- Add an optional property (not listed in `required`)
+- Remove a name from `required`
+- Widen `type` (old type set ⊆ new)
+- Add an `enum` value; remove `const` / loosen constraints
+- `description` / `title` / `$comment` / `$id` / `examples` / `default` changes
+- Prompt argument description change; `required: true → false`; argument reorder only
+- Add optional prompt argument (`required: false`)
+
+Unknown keyword value changes default to **breaking** (fail-closed classification). Meta keys listed above are always non-breaking.
+
+---
+
+## 7. Exit codes (CLI)
 
 | Code | Meaning |
 |------|---------|
@@ -289,7 +407,7 @@ Exit codes same as verify (0 match, 1 drift, 2 error).
 
 ---
 
-## 7. Adapters (out of band)
+## 8. Adapters (out of band)
 
 Live MCP clients (stdio, etc.) are **reference adapters** that produce the input
 shape in §2. They are **not** part of the lockfile wire format.
@@ -302,15 +420,13 @@ treats that surface as **empty** and prints a clear stderr note.
 
 Streamable HTTP / SSE live fetch is not required for lockfile conformance.
 
-## 8. Explicitly out of scope
+## 9. Explicitly out of scope
 
-- Structured schema field-level diffs
 - Signed lockfiles / provenance
 - Semantic or embedding “similarity” gates
-- Resource templates (`resources/templates/list`) — not pinned in 1.2
+- Resource templates (`resources/templates/list`) — not pinned in 1.3
+- LLM / fuzzy schema matching
 
----
+## 10. Conformance
 
-## 9. Conformance
-
-Golden vectors under `testdata/` are normative for digests. Implementations MUST match those digests for the given inputs.
+Golden vectors under `testdata/` are normative for digests. Implementations MUST match those digests for the given inputs. Structured field-diff classification rules in §6 are normative for the reference CLI’s explanatory output.

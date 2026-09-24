@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "algorithm": "sha256",
   "canonicalization": "surfacepin-jcs-v1",
   "root": "21e88a5125e9d687ef27d1fbe4e3259c20a0fd6b0b8a0300d5cc3d5fbb371317",
@@ -8,11 +8,35 @@
     "entries": [
       {
         "name": "echo",
-        "digest": "f35d75b2245239a726029a0248d0c740479b8d6f7eb2b48b4cb14e1c5b1cad5f"
+        "digest": "f35d75b2245239a726029a0248d0c740479b8d6f7eb2b48b4cb14e1c5b1cad5f",
+        "surface": {
+          "description": "Echo text back",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "Text to echo"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          },
+          "name": "echo"
+        }
       },
       {
         "name": "ping",
-        "digest": "c2021025279d6e9c71b78a6c99ecb6c4d82ef96a9ac76756036f2b8b8de51104"
+        "digest": "c2021025279d6e9c71b78a6c99ecb6c4d82ef96a9ac76756036f2b8b8de51104",
+        "surface": {
+          "description": "Health check",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          },
+          "name": "ping"
+        }
       }
     ]
   },
@@ -21,11 +45,23 @@
     "entries": [
       {
         "uri": "file:///data/config.json",
-        "digest": "c5927d263bbb986cdee55a36d3ab1ea849bfb6317d009fb2d7c120b15540de9e"
+        "digest": "c5927d263bbb986cdee55a36d3ab1ea849bfb6317d009fb2d7c120b15540de9e",
+        "surface": {
+          "description": "Config file",
+          "mimeType": "application/json",
+          "name": "config",
+          "uri": "file:///data/config.json"
+        }
       },
       {
         "uri": "file:///docs/readme.md",
-        "digest": "5f3c889850dfe37c001cd15ae36ae4dc3588e6643bc7e1773ccc038196db422f"
+        "digest": "5f3c889850dfe37c001cd15ae36ae4dc3588e6643bc7e1773ccc038196db422f",
+        "surface": {
+          "description": "Project readme",
+          "mimeType": "text/markdown",
+          "name": "readme",
+          "uri": "file:///docs/readme.md"
+        }
       }
     ]
   },
@@ -34,11 +70,38 @@
     "entries": [
       {
         "name": "greet",
-        "digest": "33580c8a565986ec263ee8c6c2e5fa4ca0ad0526c91efbcd7f84df6ac4b60b9a"
+        "digest": "33580c8a565986ec263ee8c6c2e5fa4ca0ad0526c91efbcd7f84df6ac4b60b9a",
+        "surface": {
+          "arguments": [
+            {
+              "description": "Who to greet",
+              "name": "who",
+              "required": true
+            },
+            {
+              "description": "Tone",
+              "name": "tone",
+              "required": false
+            }
+          ],
+          "description": "Greeting prompt",
+          "name": "greet"
+        }
       },
       {
         "name": "summarize",
-        "digest": "bdc675d2c1f1dbe4f95f8c44113e8b2540dd1fc9a45931f0136fe641b7590a4a"
+        "digest": "bdc675d2c1f1dbe4f95f8c44113e8b2540dd1fc9a45931f0136fe641b7590a4a",
+        "surface": {
+          "arguments": [
+            {
+              "description": "",
+              "name": "text",
+              "required": true
+            }
+          ],
+          "description": "Summarize text",
+          "name": "summarize"
+        }
       }
     ]
   }

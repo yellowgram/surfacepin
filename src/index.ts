@@ -24,7 +24,21 @@ export {
   lockfileKinds,
   diffSurface,
   formatDiff,
+  formatDiffJson,
 } from "./verify.js";
+export {
+  diffJsonSchema,
+  diffToolDescriptors,
+  diffResourceDescriptors,
+  diffPromptDescriptors,
+  formatFieldChanges,
+  compactJson,
+} from "./schema-diff.js";
+export type {
+  FieldChange,
+  ChangeSeverity,
+  ChangeKind,
+} from "./schema-diff.js";
 export { fetchToolsViaStdio, fetchSurfacesViaStdio } from "./mcp-stdio.js";
 export type { StdioFetchOptions, ToolsListDoc } from "./mcp-stdio.js";
 export type {
@@ -44,6 +58,7 @@ export type {
   LockUriSection,
   LockfileV1,
   LockfileV2,
+  LockfileV3,
   Lockfile,
   DiffResult,
   SurfaceDiff,

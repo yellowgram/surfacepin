@@ -7,7 +7,12 @@ import {
   SurfacePinError,
   type SurfaceKind,
 } from "./types.js";
-import { diffSurface, formatDiff, parseLockfile } from "./verify.js";
+import {
+  diffSurface,
+  formatDiff,
+  formatDiffJson,
+  parseLockfile,
+} from "./verify.js";
 
 function usage(): never {
   console.error(`surfacepin — lock exact hashes of MCP tools/resources/prompts surfaces
@@ -17,11 +22,12 @@ Usage:
   surfacepin lock   --stdio -- <command> [args...] [-o <lockfile>] [--surface ...]
   surfacepin verify <surface.json> <lockfile> [--surface ...]
   surfacepin verify --stdio <lockfile> -- <command> [args...] [--surface ...]
-  surfacepin diff   <surface.json> <lockfile> [--surface ...]
-  surfacepin diff   --stdio <lockfile> -- <command> [args...] [--surface ...]
+  surfacepin diff   <surface.json> <lockfile> [--surface ...] [--json]
+  surfacepin diff   --stdio <lockfile> -- <command> [args...] [--surface ...] [--json]
 
---surface defaults to "tools" (lockfile v1, backward compatible).
-Include resources/prompts to write lockfile v2 with section roots + overall root.
+--surface defaults to "tools". New locks are lockfile **v3** (section roots +
+embedded \`surface\` payloads for structured field-diff). Verify still accepts
+v1 (tools-only digests) and v2 (multi-surface digests).
 
 File mode accepts a combined dump: { "tools": [...], "resources": [...], "prompts": [...] }
 (or List*Result-shaped objects with those keys). Missing selected keys → empty.
@@ -29,9 +35,13 @@ File mode accepts a combined dump: { "tools": [...], "resources": [...], "prompt
 Live --stdio calls tools/list, resources/list, prompts/list as selected.
 Servers lacking a capability → empty list + stderr note.
 
+diff prints ADDED/REMOVED/CHANGED ids; for CHANGED tools/resources/prompts with
+a v3 lock, also prints path-level schema/field changes (BREAKING / non-breaking).
+--json emits the DiffResult object.
+
 Exit codes: 0 match/ok, 1 drift, 2 usage/error
 
-See SPEC.md for canonicalization and lockfile formats v1/v2.`);
+See SPEC.md for canonicalization and lockfile formats v1/v2/v3.`);
   process.exit(2);
 }
 
@@ -86,6 +96,7 @@ interface ParsedArgs {
   surfacePath?: string;
   lockPath?: string;
   outPath?: string;
+  json: boolean;
   /** [executable, ...args] when --stdio */
   command?: string[];
 }
@@ -99,6 +110,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   let stdio = false;
   let outPath: string | undefined;
   let surfaces: SurfaceKind[] = ["tools"];
+  let json = false;
   const positional: string[] = [];
   let command: string[] | undefined;
 
@@ -110,6 +122,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
     if (a === "--stdio") {
       stdio = true;
+      continue;
+    }
+    if (a === "--json") {
+      json = true;
       continue;
     }
     if (a === "--surface" || a === "-s") {
@@ -131,6 +147,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     positional.push(a);
   }
 
+  if (json && cmd !== "diff") {
+    throw new SurfacePinError("--json is only valid with the diff command");
+  }
+
   if (stdio) {
     if (!command || command.length === 0) usage();
     if (cmd === "lock") {
@@ -140,11 +160,19 @@ function parseArgs(argv: string[]): ParsedArgs {
         stdio: true,
         surfaces,
         command,
+        json,
         outPath: outPath ?? "surfacepin.lock.json",
       };
     }
     if (positional.length !== 1 || outPath) usage();
-    return { cmd, stdio: true, surfaces, command, lockPath: positional[0] };
+    return {
+      cmd,
+      stdio: true,
+      surfaces,
+      command,
+      json,
+      lockPath: positional[0],
+    };
   }
 
   if (command) usage();
@@ -154,6 +182,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       cmd,
       stdio: false,
       surfaces,
+      json,
       surfacePath: positional[0],
       outPath: outPath ?? "surfacepin.lock.json",
     };
@@ -163,6 +192,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     cmd,
     stdio: false,
     surfaces,
+    json,
     surfacePath: positional[0],
     lockPath: positional[1],
   };
@@ -202,7 +232,11 @@ async function main(): Promise<void> {
 
     const lock = parseLockfile(readJson(opts.lockPath!));
     const diff = diffSurface(doc, lock, opts.surfaces);
-    console.log(formatDiff(diff));
+    if (opts.cmd === "diff" && opts.json) {
+      process.stdout.write(formatDiffJson(diff));
+    } else {
+      console.log(formatDiff(diff));
+    }
     process.exit(diff.match ? 0 : 1);
   } catch (e) {
     if (e instanceof SurfacePinError) {

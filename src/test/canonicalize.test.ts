@@ -13,7 +13,7 @@ import { diffSurface, parseLockfile } from "../verify.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import type { LockfileV1 } from "../types.js";
+import type { LockfileV3 } from "../types.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const testdata = join(here, "..", "..", "testdata");
@@ -133,26 +133,39 @@ describe("digests", () => {
 });
 
 describe("golden vectors", () => {
-  it("basic tools match golden lockfile", () => {
+  it("basic tools match golden lockfile v3", () => {
     const tools = JSON.parse(
       readFileSync(join(testdata, "basic.tools.json"), "utf8"),
     );
     const golden = JSON.parse(
-      readFileSync(join(testdata, "basic.lock.json"), "utf8"),
+      readFileSync(join(testdata, "basic.v3.lock.json"), "utf8"),
     );
     const { lockfile } = computeSurface(tools);
     assert.deepEqual(lockfile, golden);
+    assert.equal(lockfile.version, 3);
   });
 
-  it("empty tools list is valid", () => {
+  it("v1 golden still verifies (digest-compatible)", () => {
+    const tools = JSON.parse(
+      readFileSync(join(testdata, "basic.tools.json"), "utf8"),
+    );
+    const v1 = parseLockfile(
+      JSON.parse(readFileSync(join(testdata, "basic.lock.json"), "utf8")),
+    );
+    const d = diffSurface(tools, v1);
+    assert.equal(d.match, true);
+  });
+
+  it("empty tools list is valid (v3)", () => {
     const tools = JSON.parse(
       readFileSync(join(testdata, "empty.tools.json"), "utf8"),
     );
     const golden = JSON.parse(
-      readFileSync(join(testdata, "empty.lock.json"), "utf8"),
+      readFileSync(join(testdata, "empty.v3.lock.json"), "utf8"),
     );
     const { lockfile } = computeSurface(tools);
     assert.deepEqual(lockfile, golden);
+    assert.equal(lockfile.version, 3);
   });
 
   it("key order in inputSchema does not affect digest", () => {
@@ -195,7 +208,7 @@ describe("golden vectors", () => {
     assert.equal(computeSurface(pretty).root, computeSurface(shuffled).root);
   });
 
-  it("multi-surface golden matches lockfile v2", () => {
+  it("multi-surface golden matches lockfile v3", () => {
     const surface = JSON.parse(
       readFileSync(join(testdata, "basic.surface.json"), "utf8"),
     );
@@ -208,7 +221,11 @@ describe("golden vectors", () => {
       "prompts",
     ]);
     assert.deepEqual(lockfile, golden);
-    assert.equal(lockfile.version, 2);
+    assert.equal(lockfile.version, 3);
+    // Embedded surfaces present
+    assert.ok(lockfile.tools!.entries[0].surface);
+    assert.ok(lockfile.resources!.entries[0].surface);
+    assert.ok(lockfile.prompts!.entries[0].surface);
   });
 
   it("resource/prompt field order does not affect digests", () => {
@@ -296,10 +313,11 @@ describe("verify / diff", () => {
   it("defaults missing description and inputSchema", () => {
     const doc = { tools: [{ name: "bare" }] };
     const { lockfile } = computeSurface(doc);
-    assert.equal(lockfile.version, 1);
-    const v1 = lockfile as LockfileV1;
-    assert.equal(v1.tools.length, 1);
-    assert.equal(v1.tools[0].name, "bare");
+    assert.equal(lockfile.version, 3);
+    const v3 = lockfile as LockfileV3;
+    assert.equal(v3.tools!.entries.length, 1);
+    assert.equal(v3.tools!.entries[0].name, "bare");
+    assert.ok(v3.tools!.entries[0].surface);
     const doc2 = {
       tools: [{ name: "bare", description: "", inputSchema: {} }],
     };

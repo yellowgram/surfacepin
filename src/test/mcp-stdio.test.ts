@@ -17,8 +17,11 @@ const cli = join(root, "dist", "cli.js");
 const basicTools = JSON.parse(
   readFileSync(join(testdata, "basic.tools.json"), "utf8"),
 );
-const basicLock = JSON.parse(
+const basicLockV1 = JSON.parse(
   readFileSync(join(testdata, "basic.lock.json"), "utf8"),
+);
+const basicLockV3 = JSON.parse(
+  readFileSync(join(testdata, "basic.v3.lock.json"), "utf8"),
 );
 const basicSurface = JSON.parse(
   readFileSync(join(testdata, "basic.surface.json"), "utf8"),
@@ -58,7 +61,7 @@ describe("fetchToolsViaStdio", () => {
       args: [stub],
       timeoutMs: 15_000,
     });
-    const lock = parseLockfile(basicLock);
+    const lock = parseLockfile(basicLockV1);
     const d = diffSurface(doc, lock);
     assert.equal(d.match, true);
   });
@@ -105,7 +108,7 @@ describe("fetchSurfacesViaStdio multi", () => {
 });
 
 describe("CLI --stdio", () => {
-  it("lock --stdio writes a lock matching the file golden", () => {
+  it("lock --stdio writes a lock matching the file golden v3", () => {
     const dir = mkdtempSync(join(tmpdir(), "surfacepin-"));
     const out = join(dir, "out.lock.json");
     try {
@@ -116,14 +119,15 @@ describe("CLI --stdio", () => {
       );
       assert.equal(r.status, 0, `stderr=${r.stderr}\nstdout=${r.stdout}`);
       const written = JSON.parse(readFileSync(out, "utf8"));
-      assert.equal(written.root, basicLock.root);
-      assert.deepEqual(written.tools, basicLock.tools);
+      assert.equal(written.version, 3);
+      assert.equal(written.root, basicLockV3.root);
+      assert.deepEqual(written.tools, basicLockV3.tools);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("lock --stdio --surface tools,resources,prompts writes v2", () => {
+  it("lock --stdio --surface tools,resources,prompts writes v3", () => {
     const dir = mkdtempSync(join(tmpdir(), "surfacepin-"));
     const out = join(dir, "out.lock.json");
     try {
@@ -145,7 +149,7 @@ describe("CLI --stdio", () => {
       );
       assert.equal(r.status, 0, `stderr=${r.stderr}\nstdout=${r.stdout}`);
       const written = JSON.parse(readFileSync(out, "utf8"));
-      assert.equal(written.version, 2);
+      assert.equal(written.version, 3);
       assert.equal(written.root, basicMultiLock.root);
       assert.deepEqual(written.tools, basicMultiLock.tools);
       assert.deepEqual(written.resources, basicMultiLock.resources);

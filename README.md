@@ -8,7 +8,9 @@ Lock **exact hashes** of an MCP server’s list surfaces and fail CI when they d
 
 This is deterministic byte-level hashing — **not** semantic / LLM / embedding drift detection. If a description character changes, the digest changes.
 
-Spec: [SPEC.md](./SPEC.md) (canonicalization `surfacepin-jcs-v1` + lockfile v1/v2).
+On mismatch, **lockfile v3** also explains *what* changed with a deterministic JSON Schema field-diff (breaking vs non-breaking). Pass/fail remains digest equality.
+
+Spec: [SPEC.md](./SPEC.md) (canonicalization `surfacepin-jcs-v1` + lockfile v1/v2/v3).
 
 ## 60-second start
 
@@ -16,17 +18,19 @@ Spec: [SPEC.md](./SPEC.md) (canonicalization `surfacepin-jcs-v1` + lockfile v1/v
 # Node 20+
 npm install -g surfacepin   # or: npx surfacepin … / npm install surfacepin --save-dev
 
-# Tools only (default) — lockfile v1, backward compatible
+# Lock (writes lockfile v3 with embedded surfaces for structured diff)
 surfacepin lock tools.json -o surfacepin.lock.json
 surfacepin verify tools.json surfacepin.lock.json
 surfacepin diff tools.json surfacepin.lock.json
 
-# Multi-surface — lockfile v2
+# Multi-surface
 surfacepin lock surface.json --surface tools,resources,prompts -o surfacepin.lock.json
 surfacepin verify surface.json surfacepin.lock.json --surface tools,resources,prompts
 ```
 
 File mode accepts a combined dump `{ "tools": [...], "resources": [...], "prompts": [...] }` (or List*Result-shaped). Missing selected keys → empty.
+
+Verify still accepts older **v1** / **v2** lockfiles (digest-only). Re-lock to get v3 field-diff.
 
 ### Live MCP (stdio)
 
@@ -41,6 +45,26 @@ Everything after `--` is the server command + args. Servers lacking a capability
 Exit codes: `0` match, `1` drift, `2` usage/parse error.
 
 Commit `surfacepin.lock.json`. Re-lock when you intentionally change the surface.
+
+### Structured diff example
+
+When a tool’s `inputSchema` drifts under a v3 lock:
+
+```
+DRIFT: surface does not match lockfile
+CHANGED echo
+        f35d75b2… -> a6fdd0e9…
+        CHANGED description (non-breaking)
+                "Echo text back" -> "Echo text back (updated)"
+        ADDED   inputSchema.properties.lang (non-breaking)
+                + {"type":"string"}
+        CHANGED inputSchema.properties.text.type (BREAKING)
+                "string" -> "number"
+        ADDED   inputSchema.required["lang"] (BREAKING)
+                + "lang"
+```
+
+Machine output: `surfacepin diff … --json`.
 
 ### Local from this repo
 
@@ -65,15 +89,16 @@ Composite action under [`action/`](./action/). File-based tools verify (CI usual
 
 Or call the CLI yourself after `npm install surfacepin`.
 
-## What v1.2 does / does not
+## What v1.3 does / does not
 
 | Does | Does not |
 |------|----------|
-| Hash tools + resources + prompts | Structured schema field-level diffs |
-| Lockfile v1 (tools) + v2 (multi-surface) | Streamable HTTP / SSE (stdio only) |
-| Offline verify from JSON files | Semantic similarity gates |
-| Live list* via MCP stdio (`--stdio -- …`) | Hosted service, telemetry, signed locks |
-| Diff reports which surface drifted | Resource templates list |
+| Hash tools + resources + prompts | Semantic similarity gates |
+| Lockfile v3 (embedded surfaces) + verify v1/v2/v3 | Streamable HTTP / SSE (stdio only) |
+| Deterministic schema field-diff on `diff` | LLM / fuzzy matching |
+| Offline verify from JSON files | Hosted service, telemetry, signed locks |
+| Live list* via MCP stdio (`--stdio -- …`) | Resource templates list |
+| Breaking vs non-breaking path classification | |
 
 ## License
 

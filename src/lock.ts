@@ -16,8 +16,7 @@ import {
 } from "./normalize.js";
 import type {
   Lockfile,
-  LockfileV1,
-  LockfileV2,
+  LockfileV3,
   LockNameEntry,
   LockUriEntry,
   PromptDescriptor,
@@ -47,8 +46,36 @@ export interface ComputedSurface {
   lockfile: Lockfile;
 }
 
-function isToolsOnly(kinds: readonly SurfaceKind[]): boolean {
-  return kinds.length === 1 && kinds[0] === "tools";
+/** Exact hashed tool payload (matches toolDigest input). */
+function toolSurfacePayload(d: ToolDescriptor): ToolDescriptor {
+  return {
+    description: d.description,
+    inputSchema: d.inputSchema,
+    name: d.name,
+  };
+}
+
+/** Exact hashed resource payload (matches resourceDigest input). */
+function resourceSurfacePayload(d: ResourceDescriptor): ResourceDescriptor {
+  return {
+    description: d.description,
+    mimeType: d.mimeType,
+    name: d.name,
+    uri: d.uri,
+  };
+}
+
+/** Exact hashed prompt payload (matches promptDigest input). */
+function promptSurfacePayload(d: PromptDescriptor): PromptDescriptor {
+  return {
+    arguments: d.arguments.map((a) => ({
+      description: a.description,
+      name: a.name,
+      required: a.required,
+    })),
+    description: d.description,
+    name: d.name,
+  };
 }
 
 /** Compute digests and build a lockfile from a surface document. */
@@ -77,9 +104,10 @@ export function computeFromExtracted(
 
   if (kinds.includes("tools")) {
     const descriptors = normalizeTools(extracted.tools ?? []);
-    const entries = descriptors.map((d) => ({
+    const entries: LockNameEntry[] = descriptors.map((d) => ({
       name: d.name,
       digest: toolDigest(d),
+      surface: toolSurfacePayload(d),
     }));
     const root = rootDigest(entries);
     result.tools = { descriptors, entries, root };
@@ -88,9 +116,10 @@ export function computeFromExtracted(
 
   if (kinds.includes("resources")) {
     const descriptors = normalizeResources(extracted.resources ?? []);
-    const entries = descriptors.map((d) => ({
+    const entries: LockUriEntry[] = descriptors.map((d) => ({
       uri: d.uri,
       digest: resourceDigest(d),
+      surface: resourceSurfacePayload(d),
     }));
     const root = resourcesSectionRoot(entries);
     result.resources = { descriptors, entries, root };
@@ -99,33 +128,21 @@ export function computeFromExtracted(
 
   if (kinds.includes("prompts")) {
     const descriptors = normalizePrompts(extracted.prompts ?? []);
-    const entries = descriptors.map((d) => ({
+    const entries: LockNameEntry[] = descriptors.map((d) => ({
       name: d.name,
       digest: promptDigest(d),
+      surface: promptSurfacePayload(d),
     }));
     const root = promptsSectionRoot(entries);
     result.prompts = { descriptors, entries, root };
     sectionRoots.push({ kind: "prompts", root });
   }
 
-  if (isToolsOnly(kinds)) {
-    // Backward-compatible lockfile v1.
-    const tools = result.tools!;
-    const lockfile: LockfileV1 = {
-      version: 1,
-      algorithm: "sha256",
-      canonicalization: "surfacepin-jcs-v1",
-      root: tools.root,
-      tools: tools.entries,
-    };
-    result.root = tools.root;
-    result.lockfile = lockfile;
-    return result;
-  }
-
+  // Lockfile v3: section shape matches v2 + embedded `surface` on each entry.
+  // Digests / section roots / overall root are identical to v2 for the same content.
   const root = overallRootDigestV2(sectionRoots);
-  const lockfile: LockfileV2 = {
-    version: 2,
+  const lockfile: LockfileV3 = {
+    version: 3,
     algorithm: "sha256",
     canonicalization: "surfacepin-jcs-v1",
     root,
