@@ -1,0 +1,9 @@
+src/
+testdata/
+examples/
+action/
+.github/
+GROUND_RULES.md
+STATUS.md
+*.tgz
+node_modules/

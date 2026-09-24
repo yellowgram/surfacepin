@@ -1,0 +1,50 @@
+name: SurfacePin
+description: Verify an MCP tools/list JSON dump against a SurfacePin lockfile (exact hash; fail on drift).
+author: yellowgram
+branding:
+  icon: lock
+  color: gray-dark
+
+inputs:
+  tools-path:
+    description: Path to tools/list JSON (ListToolsResult-shaped or { "tools": [...] })
+    required: true
+  lockfile-path:
+    description: Path to surfacepin.lock.json
+    required: true
+  working-directory:
+    description: Working directory for paths (default repo root)
+    required: false
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install SurfacePin
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        # Prefer action-bundled sources when this action is checked out as yellowgram/surfacepin
+        ACTION_ROOT="${{ github.action_path }}"
+        if [ -f "$ACTION_ROOT/../package.json" ]; then
+          cd "$ACTION_ROOT/.."
+          npm install --ignore-scripts
+          npm run build
+          echo "SURFACEPIN_BIN=$ACTION_ROOT/../dist/cli.js" >> "$GITHUB_ENV"
+        else
+          npm install -g surfacepin
+          echo "SURFACEPIN_BIN=surfacepin" >> "$GITHUB_ENV"
+        fi
+
+    - name: Verify surface lock
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        node "$SURFACEPIN_BIN" verify "${{ inputs.tools-path }}" "${{ inputs.lockfile-path }}"

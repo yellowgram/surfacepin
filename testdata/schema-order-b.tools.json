@@ -1,0 +1,16 @@
+{
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search things",
+      "inputSchema": {
+        "required": ["q"],
+        "properties": {
+          "limit": { "type": "number" },
+          "q": { "type": "string" }
+        },
+        "type": "object"
+      }
+    }
+  ]
+}
