@@ -41,11 +41,11 @@ https://github.com/yellowgram/surfacepin
 - Only tools surface (`name`, `description`, `inputSchema`); ignores annotations/outputSchema
 - Diff is name-level + digest, not structured JSON Schema field diff
 - Lockfiles are not signed
-- Not yet published to npm registry (package layout is npm-ready; founder gate on `npm publish`)
+- [x] Published to npm: `surfacepin@1.0.0` (https://www.npmjs.com/package/surfacepin) on 2026-09-24
 
 ## Suggested next
 
-1. `npm publish` when founder approves
+1. ~~`npm publish`~~ done (`surfacepin@1.0.0`)
 2. Live MCP adapter (stdio) dumping tools JSON then lock/verify
 3. Pin `resources/list` + `prompts/list` with same core
 4. Structured schema diff (which JSON Schema keywords changed)
