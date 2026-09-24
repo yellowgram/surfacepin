@@ -20,6 +20,7 @@
 - [x] Stub MCP child + integration tests; Action remains file-based
 - [x] Dep: `@modelcontextprotocol/sdk` (+ `zod` peer) for Client + StdioClientTransport
 - [x] Wire format unchanged (adapter out of band); version `1.1.0`
+- [x] Published to npm: `surfacepin@1.1.0` (https://www.npmjs.com/package/surfacepin) on 2026-09-24
 
 ## How to run
 
