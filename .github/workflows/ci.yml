@@ -25,3 +25,12 @@ jobs:
           node dist/cli.js verify examples/tools.json examples/surfacepin.lock.json
           node dist/cli.js lock examples/tools.json -o /tmp/surfacepin.lock.json
           node dist/cli.js diff examples/tools.json /tmp/surfacepin.lock.json
+
+  action-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: yellowgram/surfacepin/action@v1
+        with:
+          tools-path: examples/tools.json
+          lockfile-path: examples/surfacepin.lock.json
