@@ -70,6 +70,14 @@ https://github.com/yellowgram/surfacepin
 - [x] Action unchanged; no new runtime deps
 - [ ] npm publish / git tag — founder-gated
 
+### Unreleased (library + one foreign insert)
+
+- [x] SDK-shaped `pin` / `verify` / `diff` (+ `pinStdio` / `verifyStdio`)
+- [x] CLI lock/verify/diff call the library
+- [x] One foreign default path: official SDK `createServer` server + library gate (`examples/sdk-default-path`, `npm run sdk-path`)
+- [ ] Official MCP SDK example/generator PR — not this cut
+- [ ] ClaimPin / attestation registry — v2, after this insert is used
+
 ## Known gaps (intentional — document, do not implement this cut)
 
 - `initialize.instructions` not pinned
@@ -83,7 +91,7 @@ https://github.com/yellowgram/surfacepin
 
 ## Suggested next
 
-1. Action multi-surface file inputs (if users ask) — separate cut
-2. Optional Streamable HTTP live fetch (if cheap)
-3. Conformance suite packaged for external implementations
-4. Optional signed lockfiles (minisign / sigstore) — still exact-hash underneath
+1. Use `sdk-default-path` as the template for one generator/skill PR under the MCP SDK — do not invent a new product
+2. Action multi-surface file inputs (if users ask) — separate cut
+3. Optional Streamable HTTP live fetch (if cheap)
+4. ClaimPin / attestation only after a real dependent exists
