@@ -79,6 +79,24 @@ CHANGED echo
 
 Machine output: `surfacepin diff … --json`.
 
+### Library (`pin` / `verify` / `diff`)
+
+CLI is a client of these. No LLM on the gate.
+
+```ts
+import { pin, verify, diff, pinStdio, verifyStdio } from "surfacepin";
+
+const { lockfile, text } = pin(doc); // lockfile v3
+const { ok, diff: report } = verify(doc, lockfile);
+const live = await verifyStdio({
+  command: "node",
+  args: ["server.mjs"],
+  lockfile,
+});
+```
+
+Foreign default path (official SDK `createServer` + this library as the gate): `npm run sdk-path`.
+
 ### Local from this repo
 
 `npm run demo` is the fixture proof above (`npm install` first; the script builds). Unit tests and other local CLI checks:

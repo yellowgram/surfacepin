@@ -1,18 +1,12 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
-import { computeSurface, serializeLockfile } from "./lock.js";
+import { pin, verify, formatDiff, formatDiffJson } from "./api.js";
 import { fetchSurfacesViaStdio } from "./mcp-stdio.js";
 import {
   ALL_SURFACE_KINDS,
   SurfacePinError,
   type SurfaceKind,
 } from "./types.js";
-import {
-  diffSurface,
-  formatDiff,
-  formatDiffJson,
-  parseLockfile,
-} from "./verify.js";
 
 function usage(): never {
   console.error(`surfacepin — lock exact hashes of MCP tools/resources/prompts surfaces
@@ -216,28 +210,27 @@ async function main(): Promise<void> {
     const doc = await loadSurfaceDoc(opts);
 
     if (opts.cmd === "lock") {
-      const { lockfile, root, tools, resources, prompts } = computeSurface(
-        doc,
-        opts.surfaces,
-      );
-      const text = serializeLockfile(lockfile);
+      const { text, root, computed } = pin(doc, { surfaces: opts.surfaces });
       writeFileSync(opts.outPath!, text, "utf8");
       console.log(`Wrote ${opts.outPath}`);
       console.log(`ROOT ${root}`);
-      if (tools) console.log(`TOOLS ${tools.entries.length}`);
-      if (resources) console.log(`RESOURCES ${resources.entries.length}`);
-      if (prompts) console.log(`PROMPTS ${prompts.entries.length}`);
+      if (computed.tools) console.log(`TOOLS ${computed.tools.entries.length}`);
+      if (computed.resources)
+        console.log(`RESOURCES ${computed.resources.entries.length}`);
+      if (computed.prompts)
+        console.log(`PROMPTS ${computed.prompts.entries.length}`);
       process.exit(0);
     }
 
-    const lock = parseLockfile(readJson(opts.lockPath!));
-    const diff = diffSurface(doc, lock, opts.surfaces);
+    const checked = verify(doc, readJson(opts.lockPath!), {
+      surfaces: opts.surfaces,
+    });
     if (opts.cmd === "diff" && opts.json) {
-      process.stdout.write(formatDiffJson(diff));
+      process.stdout.write(formatDiffJson(checked.diff));
     } else {
-      console.log(formatDiff(diff));
+      console.log(formatDiff(checked.diff));
     }
-    process.exit(diff.match ? 0 : 1);
+    process.exit(checked.ok ? 0 : 1);
   } catch (e) {
     if (e instanceof SurfacePinError) {
       console.error(`error: ${e.message}`);
