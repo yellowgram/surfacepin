@@ -25,6 +25,8 @@ jobs:
           node dist/cli.js verify examples/tools.json examples/surfacepin.lock.json
           node dist/cli.js lock examples/tools.json -o /tmp/surfacepin.lock.json
           node dist/cli.js diff examples/tools.json /tmp/surfacepin.lock.json
+      - name: Foreign SDK default path
+        run: node examples/sdk-default-path/check.mjs
 
   action-verify:
     runs-on: ubuntu-latest

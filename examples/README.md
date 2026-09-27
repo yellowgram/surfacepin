@@ -1,5 +1,6 @@
 # Examples
 
+- `sdk-default-path/` — foreign insert: official SDK `createServer` + library `pinStdio`/`verifyStdio` as the default gate (`npm run sdk-path`)
 - `tools.json` — tiny MCP-shaped tools list
 - `surfacepin.lock.json` — lockfile produced by `surfacepin lock tools.json` (v3, tools-only + embedded surfaces)
 

@@ -1,0 +1,31 @@
+{
+  "version": 3,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v1",
+  "root": "9cc93c8e4103dd3d6189491cd3092dea0cf209772fb7a28991fef40268f1f19d",
+  "tools": {
+    "root": "4ccb986dce38aa6c9bac2b609cc2aec3e0363b8d5ce6ec905b62451a8b88a8eb",
+    "entries": [
+      {
+        "name": "greet",
+        "digest": "dc7ddd11c2178a98b9cdd0f190a3ccd7b5382d847eb5aa59807f8126c7df5b32",
+        "surface": {
+          "description": "Greet someone by name",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          },
+          "name": "greet"
+        }
+      }
+    ]
+  }
+}
