@@ -12,11 +12,22 @@ On mismatch, **lockfile v3** also explains *what* changed with a deterministic f
 
 Spec: [SPEC.md](./SPEC.md) (Lockfile Spec v1.4; canonicalization `surfacepin-jcs-v1` + lockfile v1/v2/v3).
 
-## 60-second start
+## Quick start
+
+Node 20+. From a clone, `npm install` once, then `npm run demo`. The demo builds and runs the CLI on committed fixtures only (no network, no API keys).
 
 ```bash
-# Node 20+
-npm install -g surfacepin   # or: npx surfacepin … / npm install surfacepin --save-dev
+git clone https://github.com/yellowgram/surfacepin.git
+cd surfacepin
+npm install
+npm run demo
+```
+
+`npm run demo` proves exact-hash lockfile verify on committed fixtures (`testdata/basic.tools.json` against `basic.v3.lock.json`, and multi-surface `basic.surface.json`) and that a one-character description drift fails verify. Pass/fail is digest equality. `HINT_FLIP` is a field-diff label, not a safety verdict.
+
+```bash
+# Installed package: npm install -g surfacepin
+# or: npx surfacepin … / npm install surfacepin --save-dev
 
 # Lock (writes lockfile v3 with embedded surfaces for structured diff)
 surfacepin lock tools.json -o surfacepin.lock.json
@@ -70,8 +81,9 @@ Machine output: `surfacepin diff … --json`.
 
 ### Local from this repo
 
+`npm run demo` is the fixture proof above (`npm install` first; the script builds). Unit tests and other local CLI checks:
+
 ```bash
-npm install
 npm test
 node dist/cli.js lock examples/tools.json -o /tmp/sp.lock.json
 node dist/cli.js lock testdata/basic.surface.json --surface tools,resources,prompts -o /tmp/sp-multi.lock.json
