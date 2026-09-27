@@ -19,6 +19,22 @@ export {
 } from "./normalize.js";
 export type { SurfaceDoc } from "./normalize.js";
 export { computeSurface, computeFromExtracted, serializeLockfile } from "./lock.js";
+export type { ComputedSurface } from "./lock.js";
+export {
+  pin,
+  verify,
+  diff,
+  pinStdio,
+  verifyStdio,
+} from "./api.js";
+export type {
+  PinOptions,
+  PinResult,
+  VerifyOptions,
+  VerifyResult,
+  PinStdioOptions,
+  VerifyStdioOptions,
+} from "./api.js";
 export {
   parseLockfile,
   lockfileKinds,
