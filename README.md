@@ -1,5 +1,7 @@
 # SurfacePin
 
+More from yellowgram: [OSS tools](https://www.yellowgram.dev/oss).
+
 Lock **exact hashes** of an MCP server’s list surfaces and fail CI when they drift silently:
 
 - **tools** — `name`, `description`, `inputSchema`, `annotations`, `outputSchema`
