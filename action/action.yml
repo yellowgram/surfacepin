@@ -1,8 +1,13 @@
+# Adopters: pin yellowgram/surfacepin/action@v1.5.0 (exact tag, reproducible hasher).
+# @v1 is a floating major tag. It may move within 1.x and is not that pin.
+# Today v1 still names the older file-mode action (no surface / server-command).
 name: SurfacePin
 description: >
   Verify a committed surfacepin.lock.json (exact hash; fail on drift).
   File mode (tools-path) or live MCP stdio (server-command).
   Optional surface input selects tools, resources, and prompts.
+  Pin @v1.5.0 (exact tag) for a reproducible hasher.
+  Floating @v1 may move within major 1.x and is not that pin.
 author: yellowgram
 branding:
   icon: lock

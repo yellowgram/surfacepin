@@ -8,5 +8,6 @@ User-facing contributor path. Lockfile format, canonicalization (`surfacepin-jcs
 - Pre-commit hook (`.githooks/pre-commit`) verifies the same lockfile shape the Action verifies. This repo's `surfacepin.precommit` targets the offline stub.
 - README five-minute path: lock over stdio, commit `surfacepin.lock.json`, wire Action + pre-commit.
 - Ships the library `pin` / `verify` / `diff` (and stdio helpers) plus `examples/sdk-default-path` that were already on main after 1.4.0 and were not yet published.
+- Docs: pin the Action at `@v1.5.0` (exact tag) for a reproducible hasher. `@v1` is a floating major tag and may move within 1.x; it is not that pin. Today `v1` still names the older file-mode action.
 
-Not in this version: npm publish and git tag `v1.5.0` (coordinator after merge). No lockfile rename. No Streamable HTTP.
+No lockfile rename. No Streamable HTTP. Git tag `v1.5.0` is the exact Action pin above.

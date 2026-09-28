@@ -140,9 +140,17 @@ Do not rename it.
 
 ### 3. Verify that file in Actions and pre-commit
 
-GitHub Action (live stdio — the command after `--` in the CLI). Pin `@v1.5.0` once that tag exists; the current `v1` tag is the older file-mode action.
+**Pin `@v1.5.0`. Do not pin `@v1`.**
+
+| `uses` ref | Hasher you get |
+| --- | --- |
+| `yellowgram/surfacepin/action@v1.5.0` | Exact tag. **Preferred.** Reproducible hasher at tip **1.5.0** (multi-surface + stdio inputs below). |
+| `yellowgram/surfacepin/action@v1` | Floating major tag. It may move to any commit inside 1.x, so the hasher can change with no workflow edit. Today it still names the older file-mode action (`tools-path` + `lockfile-path` only). |
+
+GitHub Action (live stdio — the command after `--` in the CLI):
 
 ```yaml
+# Pin the exact tag. @v1 floats inside 1.x and is not a reproducible hasher.
 - uses: yellowgram/surfacepin/action@v1.5.0
   with:
     lockfile-path: surfacepin.lock.json
@@ -151,7 +159,7 @@ GitHub Action (live stdio — the command after `--` in the CLI). Pin `@v1.5.0` 
     server-args: testdata/stub-mcp-server.mjs
 ```
 
-File mode still works when you commit a dump instead of a server command:
+File mode still works when you commit a dump instead of a server command (same exact pin):
 
 ```yaml
 - uses: yellowgram/surfacepin/action@v1.5.0
@@ -184,6 +192,19 @@ Environment variables (`SURFACEPIN_LOCKFILE`, `SURFACEPIN_SURFACE`, `SURFACEPIN_
 
 ## GitHub Action
 
+**Pin `yellowgram/surfacepin/action@v1.5.0`.** Tip is **1.5.0**: multi-surface (`surface`) and live stdio (`server-command` / `server-args`). An exact tag keeps the hasher reproducible. Another exact tag (`@v1.4.0`, and so on) is also reproducible; it will not include inputs added after that tag.
+
+**`@v1` is a floating major tag.** GitHub resolves it to whatever commit `v1` names, and that ref may move within 1.x. A workflow that says `@v1` can run a different hasher without a file change. That is not a reproducible pin. Today `v1` still points at the older file-mode action, which does not accept `surface` or `server-command`.
+
+```yaml
+- uses: yellowgram/surfacepin/action@v1.5.0
+  with:
+    lockfile-path: surfacepin.lock.json
+    surface: tools,resources,prompts
+    server-command: node
+    server-args: testdata/stub-mcp-server.mjs
+```
+
 Composite action under [`action/`](./action/). Inputs:
 
 | Input | Required | Role |
@@ -195,9 +216,9 @@ Composite action under [`action/`](./action/). Inputs:
 | `surface` | no | `tools`, `resources`, `prompts` (comma-separated). Omit for tools only |
 | `working-directory` | no | Default `.` |
 
-Set `tools-path` or `server-command`, not both. `surface` must match the lockfile. See [Five-minute path](#five-minute-path).
+Set `tools-path` or `server-command`, not both. `surface` must match the lockfile. Lockfile name stays `surfacepin.lock.json` (lockfile v3). See [Five-minute path](#five-minute-path) for file mode and pre-commit.
 
-Use `yellowgram/surfacepin/action@v1.5.0` for these inputs. Tag `v1` currently points at the file-mode action (`tools-path` + `lockfile-path` only). This repo’s CI calls `./action` so the pull request runs the inputs above. Moving `v1` or pushing `v1.5.0` is a coordinator step after merge.
+This repo’s CI calls `./action` (the copy on the pull request), not the published tag. Adopters pin `@v1.5.0`.
 
 ## What v1.4 does / does not
 
@@ -211,7 +232,7 @@ Use `yellowgram/surfacepin/action@v1.5.0` for these inputs. Tag `v1` currently p
 | Ignore tool title / icons / _meta | Materialize MCP annotation defaults into hashes |
 | GitHub Action file mode and live `--stdio` (optional `--surface`) | A safety verdict from `HINT_FLIP` |
 
-As of 1.5.0 the Action and the pre-commit hook run the same verifies as the CLI, including multi-surface and live stdio. Lockfile format is unchanged.
+As of 1.5.0 the Action and the pre-commit hook run the same verifies as the CLI, including multi-surface and live stdio. Lockfile format is unchanged. Pin the Action at `@v1.5.0`; floating `@v1` may move within the major.
 
 ## License
 

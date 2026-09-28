@@ -77,7 +77,8 @@ https://github.com/yellowgram/surfacepin
 - [x] Pre-commit: `.githooks/pre-commit` + `surfacepin.precommit` (offline stub; same stdio verify as CI `stdio-stub`)
 - [x] CI `action-verify` matrix: file-tools, file-multi, stdio stub, sdk-default-path stdio (`uses: ./action`)
 - [x] Library `pin` / `verify` / `diff` (+ stdio helpers) and `examples/sdk-default-path` (landed on main after 1.4.0; shipping in this version)
-- [ ] npm publish and git tag `v1.5.0` — coordinator after merge (no npm credentials here; tag not pushed)
+- [x] Docs: README Action examples pin `@v1.5.0`. `@v1` is documented as a floating major tag (may move within 1.x), not a reproducible hasher. Today `v1` still names the older file-mode action
+- [x] npm `surfacepin@1.5.0` and git tag `v1.5.0` (exact Action pin). Floating `@v1` was not moved
 
 ### Still not this cut
 
