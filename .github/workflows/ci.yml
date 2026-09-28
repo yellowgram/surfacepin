@@ -28,11 +28,45 @@ jobs:
       - name: Foreign SDK default path
         run: node examples/sdk-default-path/check.mjs
 
+  # Local composite action (./action), not the published @v1 tag.
+  # file-tools keeps the old tools-path + lockfile-path contract.
   action-verify:
     runs-on: ubuntu-latest
+    name: action-verify (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: file-tools
+            tools-path: examples/tools.json
+            lockfile-path: examples/surfacepin.lock.json
+            surface: ""
+            server-command: ""
+            server-args: ""
+          - name: file-multi
+            tools-path: testdata/basic.surface.json
+            lockfile-path: testdata/basic.multi.lock.json
+            surface: tools,resources,prompts
+            server-command: ""
+            server-args: ""
+          - name: stdio-stub
+            tools-path: ""
+            lockfile-path: testdata/basic.multi.lock.json
+            surface: tools,resources,prompts
+            server-command: node
+            server-args: testdata/stub-mcp-server.mjs
+          - name: stdio-sdk
+            tools-path: ""
+            lockfile-path: examples/sdk-default-path/surfacepin.lock.json
+            surface: tools
+            server-command: node
+            server-args: examples/sdk-default-path/server.mjs
     steps:
       - uses: actions/checkout@v4
-      - uses: yellowgram/surfacepin/action@v1
+      - uses: ./action
         with:
-          tools-path: examples/tools.json
-          lockfile-path: examples/surfacepin.lock.json
+          tools-path: ${{ matrix.tools-path }}
+          lockfile-path: ${{ matrix.lockfile-path }}
+          surface: ${{ matrix.surface }}
+          server-command: ${{ matrix.server-command }}
+          server-args: ${{ matrix.server-args }}

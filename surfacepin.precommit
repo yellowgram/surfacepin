@@ -1,0 +1,13 @@
+# Pre-commit target for this repository.
+# Same offline stdio verify as the Action `stdio-stub` CI job.
+# Contributors locking their own server should set:
+#   LOCKFILE=surfacepin.lock.json
+#   SURFACE=tools,resources,prompts
+#   SERVER_COMMAND=node
+#   SERVER_ARGS=server.mjs
+# and leave TOOLS empty. Do not rename the lockfile.
+LOCKFILE=testdata/basic.multi.lock.json
+SURFACE=tools,resources,prompts
+SERVER_COMMAND=node
+SERVER_ARGS=testdata/stub-mcp-server.mjs
+TOOLS=

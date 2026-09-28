@@ -55,7 +55,7 @@ Everything after `--` is the server command + args. Servers lacking a capability
 
 Exit codes: `0` match, `1` drift, `2` usage/parse error.
 
-Commit `surfacepin.lock.json`. Re-lock when you intentionally change the surface.
+Commit `surfacepin.lock.json`. Re-lock when you intentionally change the surface. The default contributor loop is [Five-minute path](#five-minute-path).
 
 ### Structured diff example
 
@@ -108,18 +108,96 @@ node dist/cli.js lock testdata/basic.surface.json --surface tools,resources,prom
 node dist/cli.js lock --stdio --surface tools,resources,prompts -- node testdata/stub-mcp-server.mjs
 ```
 
-## GitHub Action
+## Five-minute path
 
-```yaml
-- uses: yellowgram/surfacepin/action@v1
-  with:
-    tools-path: path/to/tools.json
-    lockfile-path: surfacepin.lock.json
+Lock a live MCP server over stdio, commit `surfacepin.lock.json` (that exact name), and verify that same file in GitHub Actions and a pre-commit hook.
+
+Pass/fail is exact-hash digest equality. `HINT_FLIP` is a field-diff label, not a safety verdict.
+
+### 1. Lock live stdio
+
+Offline stub already in this repo (no network):
+
+```bash
+surfacepin lock --stdio --surface tools,resources,prompts -- node testdata/stub-mcp-server.mjs
 ```
 
-Composite action under [`action/`](./action/). File-based tools verify (CI usually commits a tools dump + lockfile). Live `--stdio` and multi-surface file inputs are CLI/local for now.
+That writes `surfacepin.lock.json`. The committed golden for this stub is `testdata/basic.multi.lock.json` (same bytes). A tools-only server uses the same command without `--surface`.
 
-Or call the CLI yourself after `npm install surfacepin`.
+Same shape against the everything reference server (needs a network fetch of the package):
+
+```bash
+surfacepin lock --stdio --surface tools,resources,prompts -- npx -y @modelcontextprotocol/server-everything
+```
+
+### 2. Commit the lockfile
+
+```bash
+git add surfacepin.lock.json
+```
+
+Do not rename it.
+
+### 3. Verify that file in Actions and pre-commit
+
+GitHub Action (live stdio — the command after `--` in the CLI). Pin `@v1.5.0` once that tag exists; the current `v1` tag is the older file-mode action.
+
+```yaml
+- uses: yellowgram/surfacepin/action@v1.5.0
+  with:
+    lockfile-path: surfacepin.lock.json
+    surface: tools,resources,prompts
+    server-command: node
+    server-args: testdata/stub-mcp-server.mjs
+```
+
+File mode still works when you commit a dump instead of a server command:
+
+```yaml
+- uses: yellowgram/surfacepin/action@v1.5.0
+  with:
+    tools-path: testdata/basic.surface.json
+    lockfile-path: testdata/basic.multi.lock.json
+    surface: tools,resources,prompts
+```
+
+`tools-path` + `lockfile-path` with no `surface` remains the tools-only file check (`examples/tools.json`).
+
+Pre-commit uses [`.githooks/pre-commit`](./.githooks/pre-commit) (no extra dependencies). Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit
+```
+
+`npm run build` first so `dist/cli.js` exists (or install `surfacepin` so the bin is on `PATH`). This repo’s [`surfacepin.precommit`](./surfacepin.precommit) verifies `testdata/basic.multi.lock.json` with `node testdata/stub-mcp-server.mjs` and `--surface tools,resources,prompts` — the same stdio check as the Action. For your server, edit that file:
+
+```
+LOCKFILE=surfacepin.lock.json
+SURFACE=tools,resources,prompts
+SERVER_COMMAND=node
+SERVER_ARGS=server.mjs
+TOOLS=
+```
+
+Environment variables (`SURFACEPIN_LOCKFILE`, `SURFACEPIN_SURFACE`, `SURFACEPIN_SERVER_COMMAND`, `SURFACEPIN_SERVER_ARGS`, `SURFACEPIN_TOOLS`) override the file. Set `SURFACEPIN_SERVER_COMMAND` empty and `SURFACEPIN_TOOLS` to a JSON dump for file mode.
+
+## GitHub Action
+
+Composite action under [`action/`](./action/). Inputs:
+
+| Input | Required | Role |
+| --- | --- | --- |
+| `lockfile-path` | yes | Path to `surfacepin.lock.json` |
+| `tools-path` | file mode | Surface JSON dump (tools-only or combined) |
+| `server-command` | stdio mode | Executable; runs `surfacepin verify --stdio … <lock> -- <command> [args]` |
+| `server-args` | no | Arguments (whitespace-separated, or one per line) |
+| `surface` | no | `tools`, `resources`, `prompts` (comma-separated). Omit for tools only |
+| `working-directory` | no | Default `.` |
+
+Set `tools-path` or `server-command`, not both. `surface` must match the lockfile. See [Five-minute path](#five-minute-path).
+
+Use `yellowgram/surfacepin/action@v1.5.0` for these inputs. Tag `v1` currently points at the file-mode action (`tools-path` + `lockfile-path` only). This repo’s CI calls `./action` so the pull request runs the inputs above. Moving `v1` or pushing `v1.5.0` is a coordinator step after merge.
 
 ## What v1.4 does / does not
 
@@ -131,6 +209,9 @@ Or call the CLI yourself after `npm install surfacepin`.
 | Offline verify from JSON files | Hosted service, telemetry, signed locks |
 | Live list* via MCP stdio (`--stdio -- …`) | Resource templates / initialize.instructions |
 | Ignore tool title / icons / _meta | Materialize MCP annotation defaults into hashes |
+| GitHub Action file mode and live `--stdio` (optional `--surface`) | A safety verdict from `HINT_FLIP` |
+
+As of 1.5.0 the Action and the pre-commit hook run the same verifies as the CLI, including multi-surface and live stdio. Lockfile format is unchanged.
 
 ## License
 
