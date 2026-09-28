@@ -1,0 +1,85 @@
+#!/bin/sh
+# Verify the SurfacePin lockfile before commit (exact-hash digest equality).
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#   chmod +x .githooks/pre-commit
+#
+# Defaults (no surfacepin.precommit): surfacepin.lock.json against
+# `node server.mjs` on the tools surface.
+# This repository's surfacepin.precommit points at the offline stub and
+# testdata/basic.multi.lock.json — the same stdio verify the Action runs.
+#
+# Environment overrides the config file:
+#   SURFACEPIN_LOCKFILE, SURFACEPIN_SURFACE,
+#   SURFACEPIN_SERVER_COMMAND, SURFACEPIN_SERVER_ARGS, SURFACEPIN_TOOLS
+# Set SURFACEPIN_SERVER_COMMAND empty and SURFACEPIN_TOOLS to a JSON dump
+# for file mode. Do not rename the lockfile.
+
+set -eu
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "surfacepin: not a git checkout" >&2
+  exit 2
+}
+cd "$root"
+
+LOCKFILE=surfacepin.lock.json
+SURFACE=
+SERVER_COMMAND=node
+SERVER_ARGS=server.mjs
+TOOLS=
+
+if [ -f surfacepin.precommit ]; then
+  # shellcheck disable=SC1091
+  . ./surfacepin.precommit
+fi
+
+if [ "${SURFACEPIN_LOCKFILE+x}" = x ]; then LOCKFILE=$SURFACEPIN_LOCKFILE; fi
+if [ "${SURFACEPIN_SURFACE+x}" = x ]; then SURFACE=$SURFACEPIN_SURFACE; fi
+if [ "${SURFACEPIN_SERVER_COMMAND+x}" = x ]; then SERVER_COMMAND=$SURFACEPIN_SERVER_COMMAND; fi
+if [ "${SURFACEPIN_SERVER_ARGS+x}" = x ]; then SERVER_ARGS=$SURFACEPIN_SERVER_ARGS; fi
+if [ "${SURFACEPIN_TOOLS+x}" = x ]; then TOOLS=$SURFACEPIN_TOOLS; fi
+
+if [ -n "$SERVER_COMMAND" ] && [ -n "$TOOLS" ]; then
+  echo "surfacepin: set a server command (stdio) or SURFACEPIN_TOOLS (file), not both" >&2
+  exit 2
+fi
+
+if [ ! -f "$LOCKFILE" ]; then
+  echo "surfacepin: lockfile not found: $LOCKFILE" >&2
+  exit 2
+fi
+
+if [ -x node_modules/.bin/surfacepin ]; then
+  set -- node_modules/.bin/surfacepin
+elif [ -f dist/cli.js ]; then
+  set -- node dist/cli.js
+elif command -v surfacepin >/dev/null 2>&1; then
+  set -- surfacepin
+else
+  echo "surfacepin: run npm run build, or install surfacepin" >&2
+  exit 2
+fi
+
+if [ -n "$SERVER_COMMAND" ]; then
+  # SERVER_ARGS is split on IFS (whitespace). Quote paths that contain spaces
+  # by putting one argument per hook invocation via SURFACEPIN_SERVER_ARGS
+  # only when there are no spaces; the Action accepts newline-separated args.
+  # shellcheck disable=SC2086
+  if [ -n "$SURFACE" ]; then
+    exec "$@" verify --stdio --surface "$SURFACE" "$LOCKFILE" -- "$SERVER_COMMAND" $SERVER_ARGS
+  fi
+  # shellcheck disable=SC2086
+  exec "$@" verify --stdio "$LOCKFILE" -- "$SERVER_COMMAND" $SERVER_ARGS
+fi
+
+if [ -n "$TOOLS" ]; then
+  if [ -n "$SURFACE" ]; then
+    exec "$@" verify --surface "$SURFACE" "$TOOLS" "$LOCKFILE"
+  fi
+  exec "$@" verify "$TOOLS" "$LOCKFILE"
+fi
+
+echo "surfacepin: no server command or tools dump to verify $LOCKFILE" >&2
+exit 2

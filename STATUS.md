@@ -70,13 +70,19 @@ https://github.com/yellowgram/surfacepin
 - [x] Action unchanged; no new runtime deps
 - [ ] npm publish / git tag — founder-gated
 
-### Unreleased (library + one foreign insert)
+### v1.5.0
 
-- [x] SDK-shaped `pin` / `verify` / `diff` (+ `pinStdio` / `verifyStdio`)
-- [x] CLI lock/verify/diff call the library
-- [x] One foreign default path: official SDK `createServer` server + library gate (`examples/sdk-default-path`, `npm run sdk-path`)
-- [ ] Official MCP SDK example/generator PR — not this cut
-- [ ] ClaimPin / attestation registry — v2, after this insert is used
+- [x] Five-minute path in README: lock live stdio → commit `surfacepin.lock.json` → Action + pre-commit verify that file
+- [x] Action: `surface`, `server-command`, `server-args` (stdio + multi-surface). `tools-path` + `lockfile-path` file mode kept
+- [x] Pre-commit: `.githooks/pre-commit` + `surfacepin.precommit` (offline stub; same stdio verify as CI `stdio-stub`)
+- [x] CI `action-verify` matrix: file-tools, file-multi, stdio stub, sdk-default-path stdio (`uses: ./action`)
+- [x] Library `pin` / `verify` / `diff` (+ stdio helpers) and `examples/sdk-default-path` (landed on main after 1.4.0; shipping in this version)
+- [ ] npm publish and git tag `v1.5.0` — coordinator after merge (no npm credentials here; tag not pushed)
+
+### Still not this cut
+
+- [ ] Official MCP SDK example/generator PR
+- [ ] ClaimPin / attestation registry — after a real dependent exists
 
 ## Known gaps (intentional — document, do not implement this cut)
 
@@ -85,13 +91,11 @@ https://github.com/yellowgram/surfacepin
 - `tool.title` / `tool.icons` / `tool._meta` ignored (decorative)
 - `resource.annotations` not hashed
 - `prompt.title` / `prompt.icons` / `prompt._meta` ignored
-- Action stays tools-file-only (multi-surface / live stdio are CLI/local)
-- No Streamable HTTP / SSE live fetch yet (stdio is enough)
+- No Streamable HTTP / SSE live fetch yet (stdio is enough; Action can run that stdio command)
 - Lockfiles are not signed
 
 ## Suggested next
 
 1. Use `sdk-default-path` as the template for one generator/skill PR under the MCP SDK — do not invent a new product
-2. Action multi-surface file inputs (if users ask) — separate cut
-3. Optional Streamable HTTP live fetch (if cheap)
-4. ClaimPin / attestation only after a real dependent exists
+2. Optional Streamable HTTP live fetch (if cheap)
+3. ClaimPin / attestation only after a real dependent exists

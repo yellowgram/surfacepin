@@ -29,3 +29,7 @@ if (!checked.ok) process.exit(1);
 Do not put an LLM on this path. Field-diff labels (`COMPATIBLE` | `BREAKING` | `HINT_FLIP`) explain mismatch; they are not the verdict.
 
 Re-lock only when the surface change is intentional.
+
+## CI
+
+Commit `surfacepin.lock.json` (do not rename it). The GitHub Action verifies that file from a JSON dump (`tools-path`) or a live stdio server (`server-command` + `server-args`), with optional `surface: tools,resources,prompts`. A pre-commit hook in `.githooks/pre-commit` runs the same check. Pass/fail is digest equality.

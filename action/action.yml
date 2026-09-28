@@ -1,5 +1,8 @@
 name: SurfacePin
-description: Verify an MCP tools/list JSON dump against a SurfacePin lockfile (exact hash; fail on drift). File-based only — live --stdio is CLI/local.
+description: >
+  Verify a committed surfacepin.lock.json (exact hash; fail on drift).
+  File mode (tools-path) or live MCP stdio (server-command).
+  Optional surface input selects tools, resources, and prompts.
 author: yellowgram
 branding:
   icon: lock
@@ -7,11 +10,33 @@ branding:
 
 inputs:
   tools-path:
-    description: 'Path to tools/list JSON (ListToolsResult-shaped or { "tools": [...] })'
-    required: true
+    description: >
+      File mode. Path to a surface JSON dump (tools/list shaped, or a combined
+      { "tools", "resources", "prompts" } document). Omit when server-command is set.
+    required: false
+    default: ""
   lockfile-path:
-    description: Path to surfacepin.lock.json
+    description: Path to surfacepin.lock.json (keep this filename)
     required: true
+  surface:
+    description: >
+      Comma-separated surfaces to verify (tools, resources, prompts).
+      Omit for tools only. Must match the surfaces stored in the lockfile.
+    required: false
+    default: ""
+  server-command:
+    description: >
+      Live stdio mode. Executable for the MCP server. The action runs
+      surfacepin verify --stdio [--surface …] <lockfile> -- <server-command> <server-args>.
+      Omit for file mode.
+    required: false
+    default: ""
+  server-args:
+    description: >
+      Arguments appended after server-command. Whitespace-separated, or one
+      argument per line when the value contains a newline.
+    required: false
+    default: ""
   working-directory:
     description: Working directory for paths (default repo root)
     required: false
@@ -45,6 +70,10 @@ runs:
     - name: Verify surface lock
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: |
-        set -euo pipefail
-        node "$SURFACEPIN_BIN" verify "${{ inputs.tools-path }}" "${{ inputs.lockfile-path }}"
+      env:
+        SURFACEPIN_TOOLS_PATH: ${{ inputs.tools-path }}
+        SURFACEPIN_LOCKFILE: ${{ inputs.lockfile-path }}
+        SURFACEPIN_SURFACE: ${{ inputs.surface }}
+        SURFACEPIN_SERVER_COMMAND: ${{ inputs.server-command }}
+        SURFACEPIN_SERVER_ARGS: ${{ inputs.server-args }}
+      run: bash "${{ github.action_path }}/verify.sh"
