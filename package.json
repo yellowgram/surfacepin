@@ -3,7 +3,10 @@
   "version": "1.5.0",
   "description": "Lock exact hashes of MCP tools/resources/prompts list surfaces; fail CI on silent drift. Offline files or live --stdio. Lockfile v3 structured field-diff (COMPATIBLE|BREAKING|HINT_FLIP).",
   "license": "MIT",
-  "author": "yellowgram",
+  "author": {
+    "name": "yellowgram",
+    "url": "https://www.yellowgram.dev"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -49,7 +52,7 @@
   "bugs": {
     "url": "https://github.com/yellowgram/surfacepin/issues"
   },
-  "homepage": "https://github.com/yellowgram/surfacepin#readme",
+  "homepage": "https://www.yellowgram.dev/oss",
   "devDependencies": {
     "@types/node": "^20.17.0",
     "typescript": "^5.6.0"
