@@ -236,6 +236,10 @@ This repo’s CI calls `./action` (the copy on the pull request), not the publis
 
 As of 1.5.0 the Action and the pre-commit hook run the same verifies as the CLI, including multi-surface and live stdio. Lockfile format is unchanged. Pin the Action at `@v1.5.0`; floating `@v1` may move within the major.
 
+## Private-repo founding
+
+OSS SurfacePin stays free and **offline** — verify never needs our servers. For a **$99 founding** reservation of the private-repo PR check: [https://www.yellowgram.dev/surface-guard](https://www.yellowgram.dev/surface-guard). A failed `surfacepin verify` prints that same offer once on stderr.
+
 ## License
 
 MIT © 2026 yellowgram
