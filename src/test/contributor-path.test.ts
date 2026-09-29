@@ -85,6 +85,17 @@ describe("action/verify.sh", () => {
     });
     assert.equal(r.status, 1, `stderr=${r.stderr}\nstdout=${r.stdout}`);
     assert.match(r.stdout, /DRIFT:/);
+    // N3: Action-fail stderr mentions $99 founding offer once (offline tip).
+    assert.match(r.stderr, /\$99 founding offer/);
+    assert.match(
+      r.stderr,
+      /https:\/\/www\.yellowgram\.dev\/surface-guard/,
+    );
+    assert.equal(
+      (r.stderr.match(/\$99 founding offer/g) ?? []).length,
+      1,
+      "founding offer must appear once on stderr",
+    );
   });
 
   it("rejects file and stdio together", () => {

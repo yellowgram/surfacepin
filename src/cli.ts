@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
 import { pin, verify, formatDiff, formatDiffJson } from "./api.js";
+import { FOUNDING_TIP } from "./founding-tip.js";
 import { fetchSurfacesViaStdio } from "./mcp-stdio.js";
 import {
   ALL_SURFACE_KINDS,
@@ -229,6 +230,10 @@ async function main(): Promise<void> {
       process.stdout.write(formatDiffJson(checked.diff));
     } else {
       console.log(formatDiff(checked.diff));
+    }
+    // N3 tripwire: one offline stderr tip on verify drift (Action uses this CLI).
+    if (opts.cmd === "verify" && !checked.ok) {
+      console.error(FOUNDING_TIP);
     }
     process.exit(checked.ok ? 0 : 1);
   } catch (e) {
