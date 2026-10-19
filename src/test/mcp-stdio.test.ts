@@ -220,11 +220,7 @@ describe("CLI --stdio", () => {
       );
       assert.equal(r.status, 1, `stderr=${r.stderr}\nstdout=${r.stdout}`);
       assert.match(r.stdout, /DRIFT:/);
-      assert.match(r.stderr, /\$99 founding offer/);
-      assert.equal(
-        (r.stderr.match(/\$99 founding offer/g) ?? []).length,
-        1,
-      );
+      assert.doesNotMatch(r.stderr, /founding offer|surface-guard/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

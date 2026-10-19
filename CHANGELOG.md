@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `surfacepin verify` no longer prints a stderr tip pointing at the retired Surface Guard reservation page. Exit codes and diff output are unchanged.
+- README: removed the private-repo founding section; added the yellowgram open source footer.
+
 ## 1.5.0
 
 User-facing contributor path. Lockfile format, canonicalization (`surfacepin-jcs-v1`), and the hasher are unchanged. Pass/fail remains exact-hash digest equality. `HINT_FLIP` stays a field-diff label.
