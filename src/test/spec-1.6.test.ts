@@ -292,3 +292,18 @@ describe("spec 1.6 — jcs-v2 golden vectors", () => {
     assert.equal(text, readFileSync(join(testdata, "titles.v3.lock.json"), "utf8"));
   });
 });
+
+describe("spec 1.6 — stdio environment", () => {
+  it("the server inherits the CLI's environment", () => {
+    const dir = mkdtempSync(join(tmpdir(), "surfacepin-env-"));
+    const lockPath = join(dir, "l.json");
+    const stub = join(testdata, "stub-mcp-server.mjs");
+    const run = (env: Record<string, string | undefined>, ...args: string[]) =>
+      spawnSync(process.execPath, [cli, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+    const lock = run({ SURFACEPIN_STUB_INSTRUCTIONS: "A" }, "lock", "--stdio", "--surface", "tools,instructions", "-o", lockPath, "--", process.execPath, stub);
+    assert.equal(lock.status, 0, lock.stderr);
+    assert.match(lock.stdout, /INSTRUCTIONS 1/);
+    assert.equal(run({ SURFACEPIN_STUB_INSTRUCTIONS: "A" }, "verify", "--stdio", lockPath, "--", process.execPath, stub).status, 0);
+    assert.equal(run({ SURFACEPIN_STUB_INSTRUCTIONS: "B" }, "verify", "--stdio", lockPath, "--", process.execPath, stub).status, 1);
+  });
+});

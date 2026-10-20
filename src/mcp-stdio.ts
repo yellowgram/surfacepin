@@ -49,13 +49,18 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-function childEnv(extra?: Record<string, string>): Record<string, string> | undefined {
-  if (!extra) return undefined;
+/**
+ * The server inherits this process's environment, plus `extra`. (The MCP SDK
+ * default passes only HOME/PATH/USER-style variables, so a server that reads
+ * an API key or feature flag would start differently under SurfacePin than
+ * in the user's client, and the wrong surface would be pinned.)
+ */
+function childEnv(extra?: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) out[k] = v;
   }
-  Object.assign(out, extra);
+  if (extra) Object.assign(out, extra);
   return out;
 }
 
