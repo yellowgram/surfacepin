@@ -86,7 +86,7 @@ describe("spec 1.6 — surfacepin-jcs-v2 (titles pinned)", () => {
     assert.deepEqual(r2.diff.surfaces.find((s) => s.kind === "prompts")!.changed[0].fields!.map((f) => f.path), ["title"]);
   });
 
-  it("a prompt argument title change is drift, reported at its argument path (SP-1)", () => {
+  it("a prompt argument title change is drift, reported at its argument path", () => {
     const doc = (t?: unknown) => ({
       prompts: [{ name: "send", arguments: [{ name: "to", required: true, ...(t === undefined ? {} : { title: t }) }] }],
     });
@@ -330,7 +330,7 @@ describe("spec 1.6 — stdio environment", () => {
     assert.equal(run({ SURFACEPIN_STUB_INSTRUCTIONS: "B" }, "verify", "--stdio", lockPath, "--", process.execPath, stub).status, 1);
   });
 
-  it("--clean-env hides the caller's variables; --env-allow passes only the named ones (SP-4)", () => {
+  it("--clean-env hides the caller's variables; --env-allow passes only the named ones", () => {
     const dir = mkdtempSync(join(tmpdir(), "surfacepin-env-"));
     const lockPath = join(dir, "l.json");
     const stub = join(testdata, "stub-mcp-server.mjs");

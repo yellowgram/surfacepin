@@ -122,7 +122,7 @@ describe("action/verify.sh", () => {
     ]);
   });
 
-  it("clean-env and env-allow reach the CLI in stdio mode and are refused in file mode (SP-4)", () => {
+  it("clean-env and env-allow reach the CLI in stdio mode and are refused in file mode", () => {
     const dir = mkdtempSync(join(tmpdir(), "surfacepin-argv-"));
     const fake = join(dir, "fake-cli.js");
     const out = join(dir, "argv.json");
