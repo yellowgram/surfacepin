@@ -45,9 +45,12 @@ if [[ -n "$cmd" ]]; then
         server_args+=("$line")
       done <<<"$raw"
     else
-      # Intentional IFS split for simple argv (no embedded spaces).
+      # Whitespace split for simple argv (no embedded spaces). Globbing is
+      # off so an argument like '*.json' reaches the server unexpanded.
+      set -f
       # shellcheck disable=SC2206
       server_args=($raw)
+      set +f
     fi
   fi
   args=(verify --stdio)
@@ -58,17 +61,72 @@ if [[ -n "$cmd" ]]; then
   if [[ ${#server_args[@]} -gt 0 ]]; then
     args+=("${server_args[@]}")
   fi
-  exec "${runner[@]}" "${args[@]}"
-fi
-
-if [[ -n "$tools" ]]; then
+elif [[ -n "$tools" ]]; then
   args=(verify)
   if [[ -n "$surface" ]]; then
     args+=(--surface "$surface")
   fi
   args+=("$tools" "$SURFACEPIN_LOCKFILE")
-  exec "${runner[@]}" "${args[@]}"
+else
+  echo "error: tools-path or server-command is required" >&2
+  exit 2
 fi
 
-echo "error: tools-path or server-command is required" >&2
-exit 2
+# The report quotes text the MCP server controls. Stop GitHub from reading
+# workflow commands (::error::, ::add-mask:: ...) out of it while it prints.
+in_actions=false
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  in_actions=true
+  token="surfacepin-$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+  echo "::stop-commands::${token}"
+fi
+
+report="$(mktemp)"
+set +e
+"${runner[@]}" "${args[@]}" 2>&1 | tee "$report"
+status=${PIPESTATUS[0]}
+set -e
+
+if [[ "$in_actions" == "true" ]]; then
+  echo "::${token}::"
+fi
+
+# Workflow-command escaping: % CR LF in messages; also : and , in properties.
+esc_msg() { local s="${1//%/%25}"; s="${s//$'\r'/%0D}"; printf '%s' "${s//$'\n'/%0A}"; }
+esc_prop() { local s; s="$(esc_msg "$1")"; s="${s//:/%3A}"; printf '%s' "${s//,/%2C}"; }
+html_esc() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+if [[ "$in_actions" == "true" ]]; then
+  lock_disp="$(printf '%s' "$SURFACEPIN_LOCKFILE" | html_esc)"
+  if [[ $status -eq 1 ]]; then
+    added=$(grep -cE '^ADDED ' "$report" || true)
+    removed=$(grep -cE '^REMOVED ' "$report" || true)
+    changed=$(grep -cE '^CHANGED ' "$report" || true)
+    msg="The MCP surface no longer matches ${SURFACEPIN_LOCKFILE}: ${added} added, ${removed} removed, ${changed} changed. See the job summary for the field-level diff. If the change is intended, review it, re-run surfacepin lock and commit the lockfile."
+    # Annotation paths are relative to the repository root, not working-directory.
+    ann_file="$SURFACEPIN_LOCKFILE"
+    wd="${SURFACEPIN_WORKDIR:-.}"
+    if [[ "$ann_file" != /* && -n "$wd" && "$wd" != "." ]]; then
+      ann_file="${wd%/}/${ann_file#./}"
+    fi
+    echo "::error file=$(esc_prop "$ann_file"),title=SurfacePin drift::$(esc_msg "$msg")"
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+      {
+        echo "### SurfacePin: drift against <code>${lock_disp}</code>"
+        echo
+        echo "${added} added, ${removed} removed, ${changed} changed. Labels (COMPATIBLE, BREAKING, HINT_FLIP) describe compatibility for callers, not safety."
+        echo
+        echo "<pre>"
+        html_esc <"$report"
+        echo "</pre>"
+      } >>"$GITHUB_STEP_SUMMARY"
+    fi
+  elif [[ $status -eq 0 && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    echo "### SurfacePin: surface matches <code>${lock_disp}</code>" >>"$GITHUB_STEP_SUMMARY"
+  elif [[ $status -ne 0 ]]; then
+    echo "::error title=SurfacePin error::$(esc_msg "surfacepin verify could not run (exit ${status}). See the step log.")"
+  fi
+fi
+
+rm -f "$report"
+exit "$status"

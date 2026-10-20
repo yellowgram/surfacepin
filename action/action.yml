@@ -60,17 +60,16 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euo pipefail
-        # Prefer action-bundled sources when this action is checked out as yellowgram/surfacepin
         ACTION_ROOT="${{ github.action_path }}"
-        if [ -f "$ACTION_ROOT/../package.json" ]; then
-          cd "$ACTION_ROOT/.."
-          npm install --ignore-scripts
-          npm run build
-          echo "SURFACEPIN_BIN=$ACTION_ROOT/../dist/cli.js" >> "$GITHUB_ENV"
-        else
-          npm install -g surfacepin
-          echo "SURFACEPIN_BIN=surfacepin" >> "$GITHUB_ENV"
+        if [ ! -f "$ACTION_ROOT/../package.json" ]; then
+          echo "::error title=SurfacePin::run this action as yellowgram/surfacepin/action@<tag> so the hasher matches the tag" >&2
+          exit 2
         fi
+        cd "$ACTION_ROOT/.."
+        # npm ci installs exactly the committed lockfile: same tag, same hasher.
+        npm ci --ignore-scripts --no-audit --no-fund
+        npm run build
+        echo "SURFACEPIN_BIN=$ACTION_ROOT/../dist/cli.js" >> "$GITHUB_ENV"
 
     - name: Verify surface lock
       shell: bash
@@ -78,6 +77,7 @@ runs:
       env:
         SURFACEPIN_TOOLS_PATH: ${{ inputs.tools-path }}
         SURFACEPIN_LOCKFILE: ${{ inputs.lockfile-path }}
+        SURFACEPIN_WORKDIR: ${{ inputs.working-directory }}
         SURFACEPIN_SURFACE: ${{ inputs.surface }}
         SURFACEPIN_SERVER_COMMAND: ${{ inputs.server-command }}
         SURFACEPIN_SERVER_ARGS: ${{ inputs.server-args }}
