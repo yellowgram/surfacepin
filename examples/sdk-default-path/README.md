@@ -1,6 +1,6 @@
 # sdk-default-path
 
-Foreign insert: official MCP TypeScript SDK server factory (`createServer` + `registerTool` + stdio).
+A server built the standard way with the official MCP TypeScript SDK (`createServer` + `registerTool` + stdio), gated by SurfacePin.
 
 The default gate is the library, not the CLI:
 

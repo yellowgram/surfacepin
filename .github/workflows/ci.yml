@@ -28,7 +28,7 @@ jobs:
       - name: Foreign SDK default path
         run: node examples/sdk-default-path/check.mjs
 
-  # Local composite action (./action), not the published @v1 tag.
+  # Local composite action (./action), not a published tag.
   # file-tools keeps the old tools-path + lockfile-path contract.
   action-verify:
     runs-on: ubuntu-latest

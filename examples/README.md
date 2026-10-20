@@ -1,11 +1,11 @@
 # Examples
 
-- `sdk-default-path/` — foreign insert: official SDK `createServer` + library `pinStdio`/`verifyStdio` as the default gate (`npm run sdk-path`)
-- `tools.json` — tiny MCP-shaped tools list
-- `surfacepin.lock.json` — lockfile produced by `surfacepin lock tools.json` (v3, tools-only + embedded surfaces)
+- `sdk-default-path/`: a server built with the official MCP SDK, gated with the library's `verifyStdio` (`npm run sdk-path`)
+- `tools.json`: a small MCP tools list
+- `surfacepin.lock.json`: the lockfile `surfacepin lock tools.json` writes
 
 For multi-surface (lockfile v3), see `../testdata/basic.surface.json` and `../testdata/basic.multi.lock.json`.
-Legacy digest-only goldens: `../testdata/basic.lock.json` (v1).
+Lockfiles from older versions (still verified): `../testdata/basic.lock.json` (v1) and `../testdata/basic.v3.lock.json` (v3, surfacepin-jcs-v1).
 
 ```bash
 node ../dist/cli.js verify tools.json surfacepin.lock.json
