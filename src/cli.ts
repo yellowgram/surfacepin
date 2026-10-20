@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, writeSync } from "node:fs";
 import { pin, verify, formatDiff, formatDiffJson } from "./api.js";
 import { lockfileKinds, parseLockfile } from "./verify.js";
 import { VERSION } from "./version.js";
@@ -10,8 +10,10 @@ import {
   type SurfaceKind,
 } from "./types.js";
 
-function usage(): never {
-  console.error(`surfacepin — lock exact hashes of MCP tools/resources/prompts surfaces
+/** Print usage. Asked for (--help) → stdout, exit 0; a usage error → stderr, exit 2. */
+function usage(asked = false): never {
+  // writeSync: process.exit() below must not cut off buffered output (async stdout on some platforms).
+  writeSync(asked ? 1 : 2, `surfacepin — lock exact hashes of MCP tools/resources/prompts surfaces
 
 Usage:
   surfacepin --version
@@ -51,8 +53,8 @@ describe compatibility for callers, not safety: review every change.
 
 Exit codes: 0 match/ok, 1 drift, 2 usage/error
 
-See SPEC.md for canonicalization and lockfile formats v1/v2/v3.`);
-  process.exit(2);
+See SPEC.md for canonicalization and lockfile formats v1/v2/v3.\n`);
+  process.exit(asked ? 0 : 2);
 }
 
 function readJson(path: string): unknown {
@@ -116,7 +118,8 @@ interface ParsedArgs {
 
 function parseArgs(argv: string[]): ParsedArgs {
   const args = argv.slice(2);
-  if (args.length === 0 || args[0] === "-h" || args[0] === "--help") usage();
+  if (args[0] === "-h" || args[0] === "--help") usage(true);
+  if (args.length === 0) usage();
   if (args[0] === "--version" || args[0] === "-v") {
     console.log(VERSION);
     process.exit(0);

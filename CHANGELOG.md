@@ -10,6 +10,7 @@ Existing lockfiles keep verifying exactly as in 1.5. Re-lock to get the new pins
 - `verify` and `diff` default to the surfaces stored in the lockfile, so `--surface` no longer has to be repeated in CI.
 - **Fix:** the `--stdio` server now inherits the caller's environment. Before, it got only HOME/PATH/USER-style variables, so a server that reads an API key or feature flag could expose a different surface than in the user's client.
 - **`--clean-env` and `--env-allow NAME[,NAME…]`** for `--stdio` (Action inputs `clean-env`, `env-allow`) keep CI secrets away from the server when it does not need them.
+- `surfacepin --help` / `-h` print the usage on stdout and exit `0`. Running with no arguments is still a usage error (stderr, exit `2`).
 - **Fix:** names and field paths containing control characters are printed JSON-quoted, so a server-chosen name can't forge report lines.
 - **Fix:** a server that repeats a list cursor, or returns more than 10,000 pages, is an error instead of a loop until the timeout.
 - **Action:** on drift it writes the diff to the job summary and puts an error annotation on the lockfile. It turns off workflow commands while server text is printed, no longer glob-expands `server-args`, installs with `npm ci --include=dev` from the tag (so `NODE_ENV=production` jobs build), uses Node 22 by default (`node-version` input; it applies to later steps in your job too), pins `actions/setup-node` by commit, and drops the unpinned `npm install -g` fallback. Pin `@v1.6.0`.

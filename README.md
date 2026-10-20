@@ -159,7 +159,7 @@ SurfacePin proves that the surface a server **declares** is byte-for-byte what y
 - **Reading the server is bounded.** A live read times out after 30 seconds and fails on a repeated list cursor or more than 10,000 pages. It never passes a partial surface.
 - **Untrusted text is escaped in reports.** Names and paths containing control characters are printed JSON-quoted. The Action turns off GitHub workflow commands while server text is printed, and HTML-escapes the job summary.
 
-Exit codes: `0` match, `1` drift, `2` usage, read or format error (including a lockfile from a newer, unknown profile).
+Exit codes: `0` match, `1` drift, `2` usage, read or format error (including a lockfile from a newer, unknown profile). `surfacepin --help` prints the usage on stdout and exits `0`.
 
 ## License
 
