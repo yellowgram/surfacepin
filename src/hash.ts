@@ -41,14 +41,19 @@ export function resourceDigest(descriptor: ResourceDescriptor): string {
   return sha256Hex(canonicalizeToBytes(payload));
 }
 
-/** Per-prompt digest: name, description, arguments (order preserved). */
+/** Per-prompt digest: name, title (jcs-v2), description, arguments (order preserved; argument titles under jcs-v2). */
 export function promptDigest(descriptor: PromptDescriptor): string {
   const payload: Record<string, unknown> = {
-    arguments: descriptor.arguments.map((a) => ({
-      description: a.description,
-      name: a.name,
-      required: a.required,
-    })),
+    // An argument title is present only under jcs-v2 (normalize drops it under v1).
+    arguments: descriptor.arguments.map((a) => {
+      const arg: Record<string, unknown> = {
+        description: a.description,
+        name: a.name,
+        required: a.required,
+      };
+      if (a.title !== undefined) arg.title = a.title;
+      return arg;
+    }),
     description: descriptor.description,
     name: descriptor.name,
   };

@@ -22,6 +22,17 @@ fi
 tools="${SURFACEPIN_TOOLS_PATH:-}"
 cmd="${SURFACEPIN_SERVER_COMMAND:-}"
 surface="${SURFACEPIN_SURFACE:-}"
+clean_env="${SURFACEPIN_CLEAN_ENV:-false}"
+env_allow="${SURFACEPIN_ENV_ALLOW:-}"
+
+if [[ "$clean_env" != "true" && "$clean_env" != "false" ]]; then
+  echo "error: clean-env must be true or false" >&2
+  exit 2
+fi
+if [[ -z "$cmd" && ( "$clean_env" == "true" || -n "$env_allow" ) ]]; then
+  echo "error: clean-env and env-allow only apply with server-command (stdio mode)" >&2
+  exit 2
+fi
 
 if [[ -n "$cmd" && -n "$tools" ]]; then
   echo "error: set tools-path (file mode) or server-command (stdio mode), not both" >&2
@@ -56,6 +67,12 @@ if [[ -n "$cmd" ]]; then
   args=(verify --stdio)
   if [[ -n "$surface" ]]; then
     args+=(--surface "$surface")
+  fi
+  if [[ "$clean_env" == "true" ]]; then
+    args+=(--clean-env)
+  fi
+  if [[ -n "$env_allow" ]]; then
+    args+=(--env-allow "$env_allow")
   fi
   args+=("$SURFACEPIN_LOCKFILE" -- "$cmd")
   if [[ ${#server_args[@]} -gt 0 ]]; then

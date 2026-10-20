@@ -76,6 +76,7 @@ export interface ResourceDescriptor {
 /** MCP PromptArgument fields used by SurfacePin. */
 export interface PromptArgumentSurface {
   name: string;
+  title?: unknown;
   description?: string;
   required?: boolean;
 }
@@ -91,6 +92,8 @@ export interface PromptSurface {
 /** Normalized prompt argument. */
 export interface PromptArgumentDescriptor {
   name: string;
+  /** jcs-v2 only. Clients show it in the argument form in place of `name`. */
+  title?: string;
   description: string;
   required: boolean;
 }

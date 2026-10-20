@@ -42,6 +42,25 @@ inputs:
       argument per line when the value contains a newline.
     required: false
     default: ""
+  clean-env:
+    description: >
+      Stdio mode. "true" starts the server with only HOME, PATH, USER and the
+      like, instead of the job's whole environment (which includes any secrets
+      the job has). Default "false".
+    required: false
+    default: "false"
+  env-allow:
+    description: >
+      Stdio mode. Comma list of variable names the server may see, on top of the
+      clean base (implies clean-env). Example: "API_BASE_URL,FEATURE_FLAGS".
+    required: false
+    default: ""
+  node-version:
+    description: >
+      Node.js version the action installs (22 or 24). This runs actions/setup-node
+      in your job, so later steps in the same job also use this Node.
+    required: false
+    default: "22"
   working-directory:
     description: Working directory for paths (default repo root)
     required: false
@@ -51,9 +70,9 @@ runs:
   using: composite
   steps:
     - name: Setup Node
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
-        node-version: "20"
+        node-version: ${{ inputs.node-version }}
 
     - name: Install SurfacePin
       shell: bash
@@ -67,7 +86,8 @@ runs:
         fi
         cd "$ACTION_ROOT/.."
         # npm ci installs exactly the committed lockfile: same tag, same hasher.
-        npm ci --ignore-scripts --no-audit --no-fund
+        # --include=dev: the build needs TypeScript even when the job sets NODE_ENV=production.
+        npm ci --ignore-scripts --no-audit --no-fund --include=dev
         npm run build
         echo "SURFACEPIN_BIN=$ACTION_ROOT/../dist/cli.js" >> "$GITHUB_ENV"
 
@@ -81,4 +101,6 @@ runs:
         SURFACEPIN_SURFACE: ${{ inputs.surface }}
         SURFACEPIN_SERVER_COMMAND: ${{ inputs.server-command }}
         SURFACEPIN_SERVER_ARGS: ${{ inputs.server-args }}
+        SURFACEPIN_CLEAN_ENV: ${{ inputs.clean-env }}
+        SURFACEPIN_ENV_ALLOW: ${{ inputs.env-allow }}
       run: bash "${{ github.action_path }}/verify.sh"

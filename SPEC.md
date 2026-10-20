@@ -127,8 +127,11 @@ Duplicate prompt `name` values are a **usage error** (exit 2).
 | `name` | yes | Non-empty string. |
 | `description` | no | If absent, treated as `""`. |
 | `required` | no | If absent, treated as `false`. |
+| `title` | no | jcs-v2 only, same rules as the tool `title`: string → hashed as `title`; absent or `null` → omit key; non-string → usage error (exit 2). jcs-v1 ignores it. Clients show it in the argument form in place of `name`. |
 
-**Prompt descriptor** (hashed):
+Ignored on an argument: `icons`, `_meta`, and any other fields.
+
+**Prompt descriptor** (hashed; under jcs-v2 an argument with a title also carries `"title"`):
 
 ```json
 {
@@ -164,7 +167,7 @@ The lockfile's `canonicalization` field names the profile. Both profiles use the
 | | `surfacepin-jcs-v1` | `surfacepin-jcs-v2` |
 |---|---|---|
 | Written by | 1.0 – 1.5 | 1.6.0 and later (default) |
-| `title` on tools, resources, prompts | ignored | hashed |
+| `title` on tools, resources, prompts and prompt arguments | ignored | hashed |
 | tool `annotations.title` | dropped | hashed |
 | `instructions` kind | not available | available |
 | Lockfile versions | v1, v2, v3 | v3 only |

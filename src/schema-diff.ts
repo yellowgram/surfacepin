@@ -603,11 +603,16 @@ function diffOutputSchema(
 }
 
 /** Title diff (jcs-v2). Display text, so COMPATIBLE for callers; review it like a description. */
-function diffTitle(out: FieldChange[], oldT: string | undefined, newT: string | undefined): void {
+function diffTitle(
+  out: FieldChange[],
+  oldT: string | undefined,
+  newT: string | undefined,
+  path = "title",
+): void {
   if (oldT === newT) return;
   const kind: ChangeKind =
     oldT === undefined ? "added" : newT === undefined ? "removed" : "changed";
-  push(out, "title", kind, "non-breaking", oldT, newT);
+  push(out, path, kind, "non-breaking", oldT, newT);
 }
 
 /** Diff two tool descriptors (hashed fields). */
@@ -674,13 +679,13 @@ export function diffPromptDescriptors(
     name: string;
     title?: string;
     description: string;
-    arguments: Array<{ name: string; description: string; required: boolean }>;
+    arguments: Array<{ name: string; title?: string; description: string; required: boolean }>;
   },
   newD: {
     name: string;
     title?: string;
     description: string;
-    arguments: Array<{ name: string; description: string; required: boolean }>;
+    arguments: Array<{ name: string; title?: string; description: string; required: boolean }>;
   },
 ): FieldChange[] {
   const out: FieldChange[] = [];
@@ -730,6 +735,7 @@ export function diffPromptDescriptors(
           n.description,
         );
       }
+      diffTitle(out, o.title, n.title, `${base}.title`);
     }
   }
 

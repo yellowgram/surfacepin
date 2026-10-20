@@ -1,7 +1,7 @@
 {
   "name": "surfacepin",
   "version": "1.6.0",
-  "description": "Lock exact hashes of MCP tools/resources/prompts list surfaces; fail CI on silent drift. Offline files or live --stdio. Lockfile v3 structured field-diff (COMPATIBLE|BREAKING|HINT_FLIP).",
+  "description": "Lock exact hashes of what an MCP server shows a model (tools, resources, prompts, titles, initialize instructions) and fail CI on silent drift. Offline files or live --stdio; field-level diff.",
   "license": "MIT",
   "author": {
     "name": "yellowgram",
@@ -27,14 +27,14 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/test/*.test.js",
     "demo": "npm run build && node scripts/demo.mjs",
     "sdk-path": "npm run build && node examples/sdk-default-path/check.mjs",
-    "prepublishOnly": "npm run build"
+    "prepack": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && npm run build"
   },
   "keywords": [
     "mcp",

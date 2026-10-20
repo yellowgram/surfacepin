@@ -86,6 +86,9 @@ On drift the job fails, the job summary shows the field-level diff, and an error
 | `server-args` | no | Arguments for it. Whitespace-separated, or one per line if an argument contains spaces |
 | `tools-path` | one of these two | File mode: a JSON dump `{ "tools": [...], "resources": [...], "prompts": [...], "instructions": "..." }` |
 | `surface` | no | Defaults to the surfaces stored in the lockfile. If set, it must match them |
+| `clean-env` | no | Live mode. `"true"` starts the server with only HOME, PATH, USER and the like instead of the job's whole environment |
+| `env-allow` | no | Live mode. Comma list of variables the server may see on top of that clean base (implies `clean-env`) |
+| `node-version` | no | Node the action installs, default `22`. It runs `actions/setup-node` in your job, so later steps in that job use this Node too |
 | `working-directory` | no | Default `.` |
 
 **Pin an exact tag (`@v1.6.0`).** The tag fixes the hasher. A floating `@v1` can move to a different hasher with no change in your workflow, and today `@v1` still names an older file-only action.
@@ -104,7 +107,7 @@ git config core.hooksPath .githooks
 | --- | --- |
 | `tools` (default) | `name`, `title`, `description`, `inputSchema`, `annotations` (including `annotations.title`), `outputSchema` |
 | `resources` | `uri`, `name`, `title`, `description`, `mimeType` |
-| `prompts` | `name`, `title`, `description`, `arguments` (order kept) |
+| `prompts` | `name`, `title`, `description`, `arguments` (order kept; each argument's `name`, `title`, `description`, `required`) |
 | `instructions` | the `instructions` text from the server's `initialize` reply |
 
 `lock` defaults to `tools`. Pass `--surface tools,resources,prompts,instructions` to pin everything. `verify` and `diff` check whatever the lockfile holds.
@@ -139,7 +142,7 @@ const live = await verifyStdio({ command: "node", args: ["server.mjs"], lockfile
 ## Upgrading from 1.5
 
 - Your existing lockfiles keep working unchanged. They record `surfacepin-jcs-v1`, which 1.6 verifies exactly as 1.5 did, and `verify` prints a one-line note suggesting a re-lock.
-- Re-locking writes `surfacepin-jcs-v2`, which also pins titles (and instructions, if you add `--surface …,instructions`). Review the diff first.
+- Re-locking writes `surfacepin-jcs-v2`, which also pins titles (including prompt argument titles) (and instructions, if you add `--surface …,instructions`). Review the diff first.
 - A jcs-v2 lockfile needs SurfacePin 1.6 or later. Move the Action pin to `@v1.6.0` in the same commit; an older verifier rejects the lockfile with exit 2 rather than passing it.
 
 ## Limits and threat model
@@ -152,7 +155,7 @@ SurfacePin proves that the surface a server **declares** is byte-for-byte what y
 - **Not pinned:** `icons`, `_meta`, resource `annotations` and `size`, resource templates (`resources/templates/list`), and `serverInfo`.
 - **Transport:** live mode speaks stdio only. For a Streamable HTTP or SSE server, dump the list results to JSON and use file mode.
 - **Lockfiles are not signed.** Whoever can change the lockfile can change the pin. Protect it the way you protect code, with review and branch rules.
-- **The server runs with your environment.** `--stdio` starts the command you give it with the same environment variables as SurfacePin itself (so it exposes the same surface as in your client). In CI, only give that step the secrets the server needs.
+- **The server runs with your environment.** By default `--stdio` starts the command you give it with the same environment variables as SurfacePin itself (so it exposes the same surface as in your client). `--clean-env` passes only HOME, PATH, USER and the like; `--env-allow NAME[,NAME…]` adds the named variables to that (Action inputs `clean-env` and `env-allow`). In CI, use one of them or only give that step the secrets the server needs.
 - **Reading the server is bounded.** A live read times out after 30 seconds and fails on a repeated list cursor or more than 10,000 pages. It never passes a partial surface.
 - **Untrusted text is escaped in reports.** Names and paths containing control characters are printed JSON-quoted. The Action turns off GitHub workflow commands while server text is printed, and HTML-escapes the job summary.
 

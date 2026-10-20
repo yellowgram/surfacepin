@@ -222,6 +222,7 @@ export function normalizeResources(
 function normalizePromptArguments(
   raw: unknown,
   promptIndex: number,
+  titles: boolean,
 ): PromptArgumentDescriptor[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
@@ -260,7 +261,12 @@ function normalizePromptArguments(
       }
       required = a.required;
     }
-    out.push({ name: a.name, description, required });
+    const arg: PromptArgumentDescriptor = { name: a.name, description, required };
+    if (titles) {
+      const title = readTitle(a.title, `prompts[${promptIndex}].arguments[${i}]`);
+      if (title !== undefined) arg.title = title;
+    }
+    out.push(arg);
   }
   // Preserve declaration order (MCP PromptArgument list is ordered).
   return out;
@@ -297,7 +303,7 @@ export function normalizePrompts(
       description = p.description;
     }
 
-    const args = normalizePromptArguments(p.arguments, i);
+    const args = normalizePromptArguments(p.arguments, i, titles);
     const desc: PromptDescriptor = { name: p.name, description, arguments: args };
     if (titles) {
       const title = readTitle(p.title, `prompts[${i}]`);

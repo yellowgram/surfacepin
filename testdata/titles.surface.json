@@ -19,7 +19,7 @@
     { "uri": "file:///docs/readme.md", "name": "readme", "title": "Project README", "mimeType": "text/markdown" }
   ],
   "prompts": [
-    { "name": "summarize", "title": "Summarize a ticket", "arguments": [{ "name": "id", "required": true }] }
+    { "name": "summarize", "title": "Summarize a ticket", "arguments": [{ "name": "id", "title": "Ticket id", "required": true }] }
   ],
   "instructions": "Call ping before export_records."
 }

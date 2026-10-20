@@ -122,6 +122,37 @@ describe("action/verify.sh", () => {
     ]);
   });
 
+  it("clean-env and env-allow reach the CLI in stdio mode and are refused in file mode (SP-4)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "surfacepin-argv-"));
+    const fake = join(dir, "fake-cli.js");
+    const out = join(dir, "argv.json");
+    writeFileSync(
+      fake,
+      `require("fs").writeFileSync(${JSON.stringify(out)}, JSON.stringify(process.argv.slice(2)));`,
+    );
+    const base = {
+      SURFACEPIN_BIN: fake,
+      SURFACEPIN_TOOLS_PATH: "",
+      SURFACEPIN_LOCKFILE: "x.lock.json",
+      SURFACEPIN_SURFACE: "",
+      SURFACEPIN_SERVER_COMMAND: "server",
+      SURFACEPIN_SERVER_ARGS: "",
+    };
+    const r = run(verifySh, { ...base, SURFACEPIN_CLEAN_ENV: "true", SURFACEPIN_ENV_ALLOW: "A,B" });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.deepEqual(JSON.parse(readFileSync(out, "utf8")), [
+      "verify", "--stdio", "--clean-env", "--env-allow", "A,B", "x.lock.json", "--", "server",
+    ]);
+    assert.equal(run(verifySh, { ...base, SURFACEPIN_CLEAN_ENV: "yes" }).status, 2);
+    const file = run(verifySh, {
+      ...base,
+      SURFACEPIN_SERVER_COMMAND: "",
+      SURFACEPIN_TOOLS_PATH: "examples/tools.json",
+      SURFACEPIN_ENV_ALLOW: "A",
+    });
+    assert.equal(file.status, 2, file.stdout + file.stderr);
+  });
+
   it("file mode matches examples/tools.json (backward compatible)", () => {
     const r = run(verifySh, {
       SURFACEPIN_TOOLS_PATH: "examples/tools.json",

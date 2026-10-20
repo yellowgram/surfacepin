@@ -172,11 +172,20 @@ function parsePromptSurface(
         `${label}.surface.arguments[${i}].required must be a boolean`,
       );
     }
-    args.push({
+    const arg: PromptDescriptor["arguments"][number] = {
       name: a.name,
       description: a.description,
       required: a.required,
-    });
+    };
+    if (titles && a.title !== undefined) {
+      if (typeof a.title !== "string") {
+        throw new SurfacePinError(
+          `${label}.surface.arguments[${i}].title must be a string when present`,
+        );
+      }
+      arg.title = a.title;
+    }
+    args.push(arg);
   }
   const desc: PromptDescriptor = {
     name: raw.name,

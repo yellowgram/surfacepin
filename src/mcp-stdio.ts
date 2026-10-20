@@ -5,7 +5,7 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { VERSION } from "./version.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { SurfaceDoc } from "./normalize.js";
 import { SurfacePinError, type SurfaceKind } from "./types.js";
 
@@ -20,6 +20,13 @@ export interface StdioFetchOptions {
    * (SDK replaces the whole env if `env` is set, so we merge here.)
    */
   env?: Record<string, string>;
+  /**
+   * Which of this process's environment variables the server sees.
+   * Omitted: all of them (the default, so the server shows the same surface as
+   * in your client). An array: only the SDK's safe base (HOME, PATH, USER, …)
+   * plus the named variables; `[]` is the clean environment.
+   */
+  envAllow?: readonly string[];
   /** Overall deadline for connect + list* (default 30s). */
   timeoutMs?: number;
   /** Which surfaces to fetch (default: tools). */
@@ -55,10 +62,18 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  * an API key or feature flag would start differently under SurfacePin than
  * in the user's client, and the wrong surface would be pinned.)
  */
-function childEnv(extra?: Record<string, string>): Record<string, string> {
+function childEnv(extra?: Record<string, string>, allow?: readonly string[]): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (v !== undefined) out[k] = v;
+  if (allow) {
+    Object.assign(out, getDefaultEnvironment());
+    for (const k of allow) {
+      const v = process.env[k];
+      if (v !== undefined) out[k] = v;
+    }
+  } else {
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v !== undefined) out[k] = v;
+    }
   }
   if (extra) Object.assign(out, extra);
   return out;
@@ -114,7 +129,7 @@ export async function fetchSurfacesViaStdio(
     command: opts.command,
     args: opts.args ?? [],
     cwd: opts.cwd,
-    env: childEnv(opts.env),
+    env: childEnv(opts.env, opts.envAllow),
     stderr: "inherit",
   });
 

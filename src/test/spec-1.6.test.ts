@@ -86,6 +86,29 @@ describe("spec 1.6 — surfacepin-jcs-v2 (titles pinned)", () => {
     assert.deepEqual(r2.diff.surfaces.find((s) => s.kind === "prompts")!.changed[0].fields!.map((f) => f.path), ["title"]);
   });
 
+  it("a prompt argument title change is drift, reported at its argument path (SP-1)", () => {
+    const doc = (t?: unknown) => ({
+      prompts: [{ name: "send", arguments: [{ name: "to", required: true, ...(t === undefined ? {} : { title: t }) }] }],
+    });
+    const kinds = ["prompts"] as const;
+    const lock = pin(doc("Recipient"), { surfaces: kinds }).lockfile;
+    assert.equal(verify(doc("Recipient"), lock).ok, true);
+    const r = verify(doc("Recipient (safe, read-only)"), lock);
+    assert.equal(r.ok, false);
+    const fields = r.diff.surfaces.find((s) => s.kind === "prompts")!.changed[0].fields!;
+    assert.deepEqual(fields.map((f) => [f.path, f.kind]), [['arguments["to"].title', "changed"]]);
+    // Adding or removing an argument title is drift too.
+    assert.equal(verify(doc(), lock).ok, false);
+    // The lock round-trips through parseLockfile with the argument title intact.
+    const reparsed = parseLockfile(JSON.parse(JSON.stringify(lock)));
+    assert.equal(verify(doc("Recipient"), reparsed).ok, true);
+    // Non-string argument titles are a usage error under v2, ignored under v1.
+    assert.throws(() => pin(doc(7), { surfaces: kinds }), SurfacePinError);
+    const v1 = pin(doc("Recipient"), { surfaces: kinds, canonicalization: "surfacepin-jcs-v1" }).lockfile;
+    assert.equal(verify(doc("Anything"), v1).ok, true);
+    assert.doesNotThrow(() => pin(doc(7), { surfaces: kinds, canonicalization: "surfacepin-jcs-v1" }));
+  });
+
   it("a non-string title is a usage error under v2 only", () => {
     assert.throws(() => pin(tool({ title: 7 })), SurfacePinError);
     assert.doesNotThrow(() => pin(tool({ title: 7 }), { canonicalization: "surfacepin-jcs-v1" }));
@@ -305,5 +328,27 @@ describe("spec 1.6 — stdio environment", () => {
     assert.match(lock.stdout, /INSTRUCTIONS 1/);
     assert.equal(run({ SURFACEPIN_STUB_INSTRUCTIONS: "A" }, "verify", "--stdio", lockPath, "--", process.execPath, stub).status, 0);
     assert.equal(run({ SURFACEPIN_STUB_INSTRUCTIONS: "B" }, "verify", "--stdio", lockPath, "--", process.execPath, stub).status, 1);
+  });
+
+  it("--clean-env hides the caller's variables; --env-allow passes only the named ones (SP-4)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "surfacepin-env-"));
+    const lockPath = join(dir, "l.json");
+    const stub = join(testdata, "stub-mcp-server.mjs");
+    const run = (env: Record<string, string | undefined>, ...args: string[]) =>
+      spawnSync(process.execPath, [cli, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+    // Lock the surface with no instructions (what a server with no env sees).
+    const empty = run({ SURFACEPIN_STUB_INSTRUCTIONS: undefined }, "lock", "--stdio", "--surface", "tools,instructions", "-o", lockPath, "--", process.execPath, stub);
+    assert.equal(empty.status, 0, empty.stderr);
+    // The variable is set in the CLI's env but --clean-env keeps it from the server: no drift.
+    const clean = run({ SURFACEPIN_STUB_INSTRUCTIONS: "secret" }, "verify", "--stdio", "--clean-env", lockPath, "--", process.execPath, stub);
+    assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+    // An allowlist that does not name it hides it too; naming it passes it (drift).
+    const other = run({ SURFACEPIN_STUB_INSTRUCTIONS: "secret" }, "verify", "--stdio", "--env-allow", "SOME_OTHER", lockPath, "--", process.execPath, stub);
+    assert.equal(other.status, 0, other.stdout + other.stderr);
+    const named = run({ SURFACEPIN_STUB_INSTRUCTIONS: "secret" }, "verify", "--stdio", "--env-allow=FOO,SURFACEPIN_STUB_INSTRUCTIONS", lockPath, "--", process.execPath, stub);
+    assert.equal(named.status, 1, named.stdout + named.stderr);
+    // Usage errors: bad names, or the flag without --stdio.
+    assert.equal(run({}, "verify", "--stdio", "--env-allow", "A-B", lockPath, "--", process.execPath, stub).status, 2);
+    assert.equal(run({}, "verify", "--clean-env", "x.json", lockPath).status, 2);
   });
 });

@@ -2,7 +2,7 @@
   "version": 3,
   "algorithm": "sha256",
   "canonicalization": "surfacepin-jcs-v2",
-  "root": "0c943de39ee8d74ed6574ef7b56adb57644eecad1545284812fcc984df93a40b",
+  "root": "0440e40a3af77116c890ddd5209b7f35a65426b99141a3bb91f78e989bc28c62",
   "tools": {
     "root": "b43c675d3a1b26c924377c4d393ad5f9039e6c157d9375bd515fec65c80d2f2a",
     "entries": [
@@ -60,17 +60,18 @@
     ]
   },
   "prompts": {
-    "root": "a3ffbda1f1b7920c8478753a10e1a4ef8a4d8867785172701202afc9ef3e89ca",
+    "root": "028933aecb2305c02c19ed8245918f187297ebf5cb323a044f214bdc035315c3",
     "entries": [
       {
         "name": "summarize",
-        "digest": "0a02792682376fe548dcc9d466ade8807abe1fb3496b6168a98cf988441a34ce",
+        "digest": "8fd2b91382b667b74cefbf1567f032f1f9f63016e3274103077ef88cba0e04b8",
         "surface": {
           "arguments": [
             {
               "description": "",
               "name": "id",
-              "required": true
+              "required": true,
+              "title": "Ticket id"
             }
           ],
           "description": "",

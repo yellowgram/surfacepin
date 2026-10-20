@@ -36,6 +36,10 @@ File mode accepts a combined dump: { "tools": [...], "resources": [...],
 "prompts": [...], "instructions": "..." } (or List*Result-shaped objects with
 those keys). Missing selected keys are treated as empty.
 
+--stdio passes the server SurfacePin's whole environment by default (so it shows
+the same surface as in your client). --clean-env passes only HOME, PATH, USER and
+the like; --env-allow NAME[,NAME...] (repeatable) adds named variables to that.
+
 Live --stdio runs initialize, then tools/list, resources/list, prompts/list as
 selected (all pages).
 Servers lacking a capability → empty list + stderr note.
@@ -106,6 +110,8 @@ interface ParsedArgs {
   json: boolean;
   /** [executable, ...args] when --stdio */
   command?: string[];
+  /** --clean-env / --env-allow: the variables the server may see (undefined = all). */
+  envAllow?: string[];
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -124,6 +130,15 @@ function parseArgs(argv: string[]): ParsedArgs {
   let json = false;
   const positional: string[] = [];
   let command: string[] | undefined;
+  let envAllow: string[] | undefined;
+  const addAllow = (v: string | undefined) => {
+    if (v === undefined) usage();
+    const names = v.split(",").map((n) => n.trim()).filter((n) => n.length > 0);
+    if (names.length === 0 || names.some((n) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(n))) {
+      throw new SurfacePinError(`--env-allow takes a comma list of variable names, got ${JSON.stringify(v)}`);
+    }
+    envAllow = [...(envAllow ?? []), ...names];
+  };
 
   for (let i = 1; i < args.length; i++) {
     const a = args[i];
@@ -137,6 +152,18 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
     if (a === "--json") {
       json = true;
+      continue;
+    }
+    if (a === "--clean-env") {
+      envAllow = envAllow ?? [];
+      continue;
+    }
+    if (a === "--env-allow") {
+      addAllow(args[++i]);
+      continue;
+    }
+    if (a.startsWith("--env-allow=")) {
+      addAllow(a.slice("--env-allow=".length));
       continue;
     }
     if (a === "--surface" || a === "-s") {
@@ -162,6 +189,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     throw new SurfacePinError("--json is only valid with verify and diff");
   }
 
+  if (envAllow && !stdio) {
+    throw new SurfacePinError("--clean-env and --env-allow are only valid with --stdio");
+  }
+
   if (stdio) {
     if (!command || command.length === 0) usage();
     if (cmd === "lock") {
@@ -171,6 +202,7 @@ function parseArgs(argv: string[]): ParsedArgs {
         stdio: true,
         surfaces,
         command,
+        envAllow,
         json,
         outPath: outPath ?? "surfacepin.lock.json",
       };
@@ -181,6 +213,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       stdio: true,
       surfaces,
       command,
+      envAllow,
       json,
       lockPath: positional[0],
     };
@@ -219,6 +252,7 @@ async function loadSurfaceDoc(
       command: exe,
       args,
       surfaces,
+      envAllow: opts.envAllow,
     });
   }
   return readJson(opts.surfacePath!);

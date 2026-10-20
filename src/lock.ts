@@ -85,11 +85,15 @@ function resourceSurfacePayload(d: ResourceDescriptor): ResourceDescriptor {
 /** Exact hashed prompt payload (matches promptDigest input). */
 function promptSurfacePayload(d: PromptDescriptor): PromptDescriptor {
   const payload: PromptDescriptor = {
-    arguments: d.arguments.map((a) => ({
-      description: a.description,
-      name: a.name,
-      required: a.required,
-    })),
+    arguments: d.arguments.map((a) => {
+      const arg: PromptDescriptor["arguments"][number] = {
+        description: a.description,
+        name: a.name,
+        required: a.required,
+      };
+      if (a.title !== undefined) arg.title = a.title;
+      return arg;
+    }),
     description: d.description,
     name: d.name,
   };
