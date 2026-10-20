@@ -22,7 +22,7 @@ They overlap on change detection and complement each other. SurfacePin keeps the
 
 ## Five-minute quickstart
 
-Node 20+. This uses the stub server that ships in the repo, so nothing is fetched beyond npm packages.
+Node 22+. This uses the stub server that ships in the repo, so nothing is fetched beyond npm packages.
 
 ```bash
 git clone https://github.com/yellowgram/surfacepin.git
@@ -144,6 +144,10 @@ const live = await verifyStdio({ command: "node", args: ["server.mjs"], lockfile
 - Your existing lockfiles keep working unchanged. They record `surfacepin-jcs-v1`, which 1.6 verifies exactly as 1.5 did, and `verify` prints a one-line note suggesting a re-lock.
 - Re-locking writes `surfacepin-jcs-v2`, which also pins titles (including prompt argument titles) (and instructions, if you add `--surface …,instructions`). Review the diff first.
 - A jcs-v2 lockfile needs SurfacePin 1.6 or later. Move the Action pin to `@v1.6.0` in the same commit; an older verifier rejects the lockfile with exit 2 rather than passing it.
+
+## Format stability
+
+The lockfile format SurfacePin writes, canonicalization `surfacepin-jcs-v2` in lockfile v3, is frozen. For the same surface, every future release computes the same bytes and digests, so a lockfile that passes today keeps passing. If the format ever needs to change, the change ships as a new, separately named profile; `surfacepin-jcs-v2` itself never changes. Older `surfacepin-jcs-v1` lockfiles stay verifiable. Byte-exact golden fixtures in `testdata/golden/jcs-v2/` fail CI on any drift. The full promise is in [SPEC.md §0](./SPEC.md#0-format-freeze-and-compatibility-promise).
 
 ## Limits and threat model
 

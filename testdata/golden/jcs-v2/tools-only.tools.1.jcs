@@ -1,0 +1,1 @@
+{"annotations":{"readOnlyHint":true},"description":"Full-text search over tickets.","inputSchema":{"properties":{"q":{"minLength":1,"type":"string"}},"required":["q"],"type":"object"},"name":"search","title":"Search tickets"}

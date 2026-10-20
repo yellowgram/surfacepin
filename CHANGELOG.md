@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.6.1
+
+No change to the CLI, library or Action behavior, the lockfile format or any digest. Besides documentation and tests, the only code changes are the version string and the wording of five error messages (two lockfile `version` errors, the unknown `canonicalization` error and two canonical JSON errors).
+
+- **The `surfacepin-jcs-v2` format is frozen.** SPEC.md now opens with a format freeze and compatibility promise: for the same input, every future release computes the same jcs-v2 bytes, digests and roots; any future format need ships as a new, separately named profile; `surfacepin-jcs-v1` and `surfacepin-jcs-v2` lockfiles stay verifiable; an unknown profile is always rejected. README links to it.
+- **Golden fixtures lock the format.** `testdata/golden/jcs-v2/` holds the byte-exact canonical output, lockfiles and SHA-256 hashes for two representative surfaces, plus value-level encoding vectors. A new test fails if any byte changes.
+- SPEC.md now states the string rules exactly, including two existing behaviors that differ from RFC 8785: a repeated member name keeps its last value, and an unpaired surrogate is hashed as U+FFFD; RFC 8785 rejects both.
+- SPEC.md now says plainly that `surfacepin-jcs-v1` already changed meaning once, in 1.4: lockfiles written by 1.0–1.3 for tools with `annotations` or `outputSchema` report drift until re-locked. That is unchanged.
+- A real lockfile v2, written by the published SurfacePin 1.2.0, is now a test fixture, and the roots of the existing jcs-v1 fixtures are pinned in a test.
+- SPEC.md: the instructions string may come from `initialize` or `server/discover`; where it comes from is transport, not format. Unknown lockfile fields never affect pass/fail; new sections arrive only with a new profile.
+- Error messages: a non-numeric lockfile `version` and an unknown `canonicalization` are shown quoted (`got "3"`, `unsupported canonicalization: "surfacepin-jcs-v2 "`), and canonical JSON errors name both profiles.
+- README: Quick start says Node 22+, matching `engines`.
+- SPEC.md wording: plain language in place of internal shorthand.
+
 ## 1.6.0
 
 Existing lockfiles keep verifying exactly as in 1.5. Re-lock to get the new pins.

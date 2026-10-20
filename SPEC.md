@@ -3,10 +3,35 @@
 Canonical specification for SurfacePin surface locking.
 CLI and Action are reference clients of this document.
 
-**Status:** Lockfile Spec v1.6 (2026-10-19)  
-**Scope:** MCP `tools/list`, `resources/list`, and `prompts/list` surfaces, and the server's `initialize.instructions`.  
+**Status:** Frozen as of 2026-10-20 (published in SurfacePin 1.6.1). The frozen format, canonicalization profile `surfacepin-jcs-v2` in lockfile v3, is exactly what SurfacePin 1.6.0 writes. See §0.  
+**Scope:** MCP `tools/list`, `resources/list`, and `prompts/list` surfaces, and the server's instructions (`initialize` or `server/discover`).  
 **Wire formats:** lockfile **v1** (tools digests), **v2** (multi-surface digests), **v3** (multi-surface + embedded hashed payloads for structured field-diff).  
 **Not in wire format:** signed lockfiles, semantic/embedding drift, LLM-assisted diff.
+
+---
+
+## 0. Format freeze and compatibility promise
+
+`surfacepin-jcs-v2` is **frozen**. Its format will not change.
+
+"The format" means everything that decides the bytes SurfacePin hashes and the digests it compares, for a lockfile that records `"canonicalization": "surfacepin-jcs-v2"`:
+
+- which input fields are hashed, ignored or rejected, and the defaults for absent fields (§2);
+- the canonical byte encoding (§3.1);
+- the item digests, section roots and overall root, including their fixed prefix lines (§3.2);
+- the lockfile v3 fields and their meaning (§4.3), and the profile id string `surfacepin-jcs-v2` itself.
+
+What SurfacePin promises:
+
+1. **A pin keeps its meaning.** For the same input, every future SurfacePin release computes exactly the same jcs-v2 bytes, digests and roots as 1.6.0. A jcs-v2 lockfile that passes today keeps passing, and one that fails keeps failing.
+2. **No silent changes.** Any future need (a newly hashed field, a new surface kind, a different default, a fix to the encoding) ships as a new, separately named profile such as `surfacepin-jcs-v3`, and, if the lockfile shape changes, a new lockfile `version`. It is never made by changing what `surfacepin-jcs-v2` means.
+3. **Existing pins are never dropped.** Verifiers keep verifying every profile and lockfile version they verify today: `surfacepin-jcs-v1` (lockfile v1, v2 and v3) and `surfacepin-jcs-v2` (lockfile v3). Each lockfile is always recomputed with the profile it records. `surfacepin-jcs-v1` means the rules of SurfacePin 1.4 and later (annotations and `outputSchema` hashed). Lockfiles written by 1.0–1.3 for tools that carry `annotations` or `outputSchema` have reported drift since 1.4 (§9) and still do; re-lock them.
+4. **Unknown means reject.** A verifier that does not know a lockfile's profile rejects it (exit 2). It never falls back to another profile and never passes the lockfile.
+5. **New profiles are opt-in for existing pins.** A new profile can become the default for newly written locks only in a release whose CHANGELOG entry and §9 migration notes say so. Existing lockfiles keep the profile they record until you re-lock.
+
+If the reference implementation is ever found to differ from this document for jcs-v2, the frozen behavior captured by the golden fixtures (§11) is the format. This document is corrected to describe it, and any change in behavior ships as a new profile.
+
+Not part of the frozen format, and free to improve: the explanatory field-diff paths and labels (§6), report wording, stderr notes and other CLI messages. None of them affect pass/fail. File formatting of a lockfile is not hashed (§4.3), although the bytes the reference CLI writes are also pinned by the golden fixtures. Where the instructions string is fetched from (a legacy `initialize` result or a `server/discover` result) is transport, not format; the hashed descriptor `{ "name": "instructions", "text": … }` is the same.
 
 ---
 
@@ -27,7 +52,7 @@ CLI and Action are reference clients of this document.
 | `tools` | `tools/list` | `name` | `name`, `title`, `description`, `inputSchema`, `annotations` (including `annotations.title`), `outputSchema` |
 | `resources` | `resources/list` | `uri` | `uri`, `name`, `title`, `description`, `mimeType` |
 | `prompts` | `prompts/list` | `name` | `name`, `title`, `description`, `arguments` (each argument's `name`, `description`, `required`, and in jcs-v2 its `title`; see §2.4) |
-| `instructions` | `initialize` result | `"instructions"` | `text` |
+| `instructions` | `initialize` (or `server/discover`) result | `"instructions"` | `text` |
 
 Under `surfacepin-jcs-v1` (locks written by 1.5 and earlier) no `title` is hashed and the `instructions` kind does not exist. See §3.0.
 
@@ -35,7 +60,7 @@ Under `surfacepin-jcs-v1` (locks written by 1.5 and earlier) no `title` is hashe
 
 Aligned to MCP schema revision **2026-07-28** as a documentation reference only (not a runtime fetch).
 
-Profile ids: `"surfacepin-jcs-v2"` (written since 1.6.0) and `"surfacepin-jcs-v1"` (still verified). See §3.0.
+Profile ids: `"surfacepin-jcs-v2"` (written since 1.6.0, frozen; see §0) and `"surfacepin-jcs-v1"` (still verified). See §3.0.
 
 ### 2.1 Input shapes
 
@@ -46,7 +71,7 @@ SurfacePin accepts a combined document:
   "tools": [ /* Tool */ ],
   "resources": [ /* Resource */ ],
   "prompts": [ /* Prompt */ ],
-  "instructions": "<initialize.instructions text>"
+  "instructions": "<server instructions text>"
 }
 ```
 
@@ -60,8 +85,8 @@ Selected list kinds with a missing key are treated as an **empty array**. A miss
 | Field | Required | Notes |
 |-------|----------|-------|
 | `name` | yes | Non-empty string. Primary identity. |
-| `description` | no | If absent, treated as `""` (1.3 coercion unchanged). |
-| `inputSchema` | no | If absent, treated as `{}`. Must be a JSON object when present (1.3 coercion unchanged). |
+| `description` | no | If absent, treated as `""`. |
+| `inputSchema` | no | If absent, treated as `{}`. Must be a JSON object when present. |
 | `title` | no | jcs-v2 only. String → hashed as `title`. Absent or `null` → omit key. Non-string → usage error (exit 2). jcs-v1 ignores it. |
 | `annotations` | no | Source: `tool.annotations`. Keep all keys including unknown; jcs-v1 drops `title` here. If absent or non-object → omit `annotations` key entirely. If empty after any drop → omit key. **Do not** materialize MCP defaults into hashed fields. |
 | `outputSchema` | no | Absent or `null` → omit key. Empty object `{}` → include as empty object. Present non-object → usage error (exit 2). **Do not** coerce absent → `{}` (absent ≠ `{}`). |
@@ -149,7 +174,7 @@ Under jcs-v2 a descriptor with a title also carries `"title": "<string>"` (tools
 
 ### 2.5 Instructions (jcs-v2 only)
 
-The `instructions` string from the server's `initialize` result. Many clients pass it to the model, so it steers tool use the way a description does.
+The server's `instructions` string (from the `initialize` result, or from `server/discover` in newer MCP revisions; see §0). Many clients pass it to the model, so it steers tool use the way a description does.
 
 - Non-empty text → one entry `{ "name": "instructions", "text": "<string>" }`.
 - Absent, `null` or `""` → no entry (empty section). Text appearing later is `ADDED instructions`; text disappearing is `REMOVED instructions`.
@@ -166,17 +191,17 @@ The lockfile's `canonicalization` field names the profile. Both profiles use the
 
 | | `surfacepin-jcs-v1` | `surfacepin-jcs-v2` |
 |---|---|---|
-| Written by | 1.0 – 1.5 | 1.6.0 and later (default) |
+| Written by | 1.0 – 1.5 (rules as of 1.4; see §9 1.3 → 1.4) | 1.6.0 and later (default) |
 | `title` on tools, resources, prompts and prompt arguments | ignored | hashed |
 | tool `annotations.title` | dropped | hashed |
 | `instructions` kind | not available | available |
 | Lockfile versions | v1, v2, v3 | v3 only |
 
-A verifier MUST recompute with the profile recorded in the lockfile. A jcs-v1 lock therefore keeps passing or failing exactly as it did under 1.5. For a surface with no titles and no instructions, both profiles give identical digests and roots; only the recorded id differs.
+A verifier MUST recompute with the profile recorded in the lockfile. A jcs-v1 lock therefore keeps passing or failing exactly as it did under 1.4 and 1.5. For a surface with no titles and no instructions, both profiles give identical digests and roots; only the recorded id differs.
 
 Why titles: MCP clients show `title` to people in place of `name`, including in approval and confirmation prompts. Under jcs-v1, renaming a tool's title from "Export" to "Read-only export (safe)" passed verify.
 
-This is an **RFC 8785 JCS-compatible** deterministic JSON encoding for the JSON data model subset used by SurfacePin (objects, arrays, strings, numbers, booleans, null). Implementation uses Node’s `JSON.parse` / ECMAScript number model.
+This is an **RFC 8785 JCS-compatible** deterministic JSON encoding for the JSON data model subset used by SurfacePin (objects, arrays, strings, numbers, booleans, null), with two documented differences: duplicate member names (§3.1 rule 9) and unpaired surrogates (§3.1 rule 5). Implementation uses Node’s `JSON.parse` / ECMAScript number model.
 
 ### 3.1 Rules
 
@@ -184,10 +209,11 @@ This is an **RFC 8785 JCS-compatible** deterministic JSON encoding for the JSON 
 2. **Whitespace:** None (no spaces, tabs, newlines between tokens).
 3. **Objects:** Keys sorted by UTF-16 code unit lexicographic order (ECMAScript default string comparison: `(a < b ? -1 : a > b ? 1 : 0)`).
 4. **Arrays:** Preserve order. Recursively canonicalize elements.
-5. **Strings:** JSON string encoding per ECMA-404 / RFC 8259.
+5. **Strings:** JSON string encoding per ECMA-404 / RFC 8259, as RFC 8785 specifies it: `"` and `\` are escaped; U+0008, U+0009, U+000A, U+000C and U+000D are written `\b`, `\t`, `\n`, `\f`, `\r`; other code points below U+0020 are written `\u00xx` (lowercase hex); everything else, including `/`, U+007F, U+2028 and U+2029, is written as-is in UTF-8. An unpaired UTF-16 surrogate (possible in JSON input such as `"\ud800"`) is written as the UTF-8 bytes of U+FFFD (`EF BF BD`), so it hashes the same as a literal U+FFFD. RFC 8785 would reject such a string instead; jcs-v2 keeps this behavior because it is frozen.
 6. **Booleans / null:** `true`, `false`, `null`.
 7. **Numbers:** ECMAScript `Number` serialization via `JSON.stringify` rules for finite numbers. `NaN` / `±Infinity` are **not allowed**.
 8. **No `undefined`:** omit object members that would be undefined.
+9. **Duplicate member names:** input JSON is parsed with ECMAScript `JSON.parse`. When an object repeats a member name, the last value is kept and earlier ones are ignored, before normalization and hashing. RFC 8785 (via I-JSON) would reject such input; jcs-v2 keeps this behavior because it is frozen. MCP clients built on `JSON.parse` show the model the same last value.
 
 Canonical bytes = UTF-8 encoding of `canonicalize(descriptor)`.
 
@@ -356,7 +382,7 @@ Same section/root digest rules as v2. Each entry includes `surface`: the **exact
 | `tools` / `resources` / `prompts` / `instructions` | Optional; at least one required. `instructions` requires jcs-v2. |
 | `entries[].surface` | Required when writing v3; exact hashed descriptor. |
 
-Unknown top-level fields: **ignored** (forward compatible).  
+Unknown top-level fields are ignored and never affect pass/fail. A new surface kind or section ships only under a new profile (§0), which older verifiers reject.  
 Missing required fields: **usage / format error**.
 
 Lockfiles **should** use 2-space indent + trailing newline. File formatting is **not** hashed.
@@ -437,7 +463,7 @@ JSON field changes carry a `kinds` **array** of taxonomy labels. Human lines pri
 
 Known-hint transitions **not** in that list → `COMPATIBLE` (still a digest change). Examples: `readOnlyHint` `false → true` / `absent → true`; `destructiveHint` `true → false`; `idempotentHint` `false → true`; `openWorldHint` `true → false`.
 
-Explicit value equal to an MCP default then omitted still changes the digest and stays `HINT_FLIP` this cut when the transition is in the list above (do not special-case default-equivalent omit as `COMPATIBLE`).
+An explicit value equal to the MCP default that is later omitted still changes the digest, and is labelled `HINT_FLIP` when the transition is in the list above. Omitting a default-equivalent value is not treated as `COMPATIBLE`.
 
 #### outputSchema
 
@@ -516,12 +542,12 @@ Streamable HTTP / SSE live fetch is not required for lockfile conformance.
 ### 1.5 → 1.6
 
 - Existing lockfiles verify exactly as before: they record `surfacepin-jcs-v1`, and verify uses that profile. The CLI prints a one-line stderr note suggesting a re-lock.
-- New locks record `surfacepin-jcs-v2`. Re-lock (after reviewing the surface) to pin titles, and add `--surface …,instructions` to pin `initialize.instructions`.
+- New locks record `surfacepin-jcs-v2`. Re-lock (after reviewing the surface) to pin titles, and add `--surface …,instructions` to pin the server's instructions.
 - A jcs-v2 lock needs a 1.6+ verifier. Bump the Action pin in the same commit as the re-lock; an older verifier fails it with exit 2.
 
 ### 1.3 → 1.4
 
-- Old lockfiles (v1 / v2 / v3) still verify.
+- Old lockfiles (v1 / v2 / v3) are still read. Tools with neither annotations nor `outputSchema` keep the same digests; tools with either report drift until re-locked.
 - Digests **change** when a tool had kept annotation keys or `outputSchema`.
 - Digests stay **stable** when a tool had neither and only `title` / `icons` / `_meta` changed or were present.
 - **Re-lock after upgrading to ≥1.4** so embedded surfaces and digests include annotations / outputSchema.
@@ -537,4 +563,22 @@ Streamable HTTP / SSE live fetch is not required for lockfile conformance.
 
 ## 11. Conformance
 
-Golden vectors under `testdata/` are normative for digests: `basic.*`, `empty.*` and `annotations-output.*` for jcs-v1, and `titles.surface.json` → `titles.v3.lock.json` for jcs-v2. Implementations MUST match those digests for the given inputs. Structured field-diff classification rules in §6 are normative for the reference CLI’s explanatory output.
+Golden vectors under [`testdata/`](https://github.com/yellowgram/surfacepin/tree/v1.6.1/testdata) (in the GitHub repository; not shipped in the npm package) are normative for digests: `basic.*`, `empty.*` and `annotations-output.*` for jcs-v1, including `basic.v2.lock.json`, a lockfile v2 written by the published SurfacePin 1.2.0 (root `21e88a5125e9d687ef27d1fbe4e3259c20a0fd6b0b8a0300d5cc3d5fbb371317`); and `titles.surface.json` → `titles.v3.lock.json` and everything under `testdata/golden/jcs-v2/` for jcs-v2. Implementations MUST match those digests for the given inputs. Structured field-diff classification rules in §6 are normative for the reference CLI’s explanatory output.
+
+### 11.1 jcs-v2 golden fixtures (frozen)
+
+[`testdata/golden/jcs-v2/`](https://github.com/yellowgram/surfacepin/tree/v1.6.1/testdata/golden/jcs-v2) (in the GitHub repository) holds the byte-exact jcs-v2 output of SurfacePin 1.6.0 for two representative surfaces, and `golden.json` lists the SHA-256 of every input surface, canonical `.jcs` file and lockfile. The test [`src/test/golden-jcs-v2.test.ts`](https://github.com/yellowgram/surfacepin/blob/v1.6.1/src/test/golden-jcs-v2.test.ts) recomputes all of it, also pins the SHA-256 of `golden.json` itself, and fails on any difference. The fixtures are never regenerated to make a change pass (§0).
+
+- `full.surface.json`: all four surface kinds. Tools with and without `title`, `annotations` (including `annotations.title` and an unknown key), `outputSchema` (including `{}`), ignored `icons` / `_meta`, absent `description` / `inputSchema`, string escapes, non-ASCII keys in UTF-16 order, and number forms. Resources and prompts with and without `title`, prompt arguments with a `title` and with defaults, and multi-line instructions.
+- `tools-only.surface.json`: the default `surfacepin lock` selection (tools only).
+- `*.jcs`: canonical bytes of each embedded descriptor, exactly as hashed (no trailing newline).
+- `*.lock.json`: the lockfile the reference CLI writes for the surface.
+- `golden.json` `values`: value-level vectors (JSON text in, canonical bytes out), including a repeated member name and an unpaired surrogate.
+
+| Case | Value | SHA-256 |
+|------|-------|---------|
+| `full` | overall `root` | `07dee637abb8eb13c64d4ef779a0e2037a6fe3cf3217dee1a85dda7dc5fb6945` |
+| `full` | `full.lock.json` file | `5d91442e365b85887bb4970b6ced45e412dd488439270bb86c047078f145fb02` |
+| `tools-only` | overall `root` | `092658bdcbfb2d55d67e71d84ded776cc6aca42d88ca8b9f8c36e53cae7e2188` |
+| `tools-only` | `tools-only.lock.json` file | `7a2c9c10b697c93e5c7803a5e77d0bba62becaaf58179bc23005989ff2a7eb84` |
+| all | `golden.json` file | `6b5d735b828cce234bb47b8dcb2f80ff51b3feb32ac683dd253ad149524d2ab2` |

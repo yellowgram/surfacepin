@@ -1,6 +1,6 @@
 {
   "name": "surfacepin",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Lock exact hashes of what an MCP server shows a model (tools, resources, prompts, titles, initialize instructions) and fail CI on silent drift. Offline files or live --stdio; field-level diff.",
   "license": "MIT",
   "author": {

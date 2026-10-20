@@ -1,0 +1,51 @@
+{
+  "version": 3,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v2",
+  "root": "092658bdcbfb2d55d67e71d84ded776cc6aca42d88ca8b9f8c36e53cae7e2188",
+  "tools": {
+    "root": "de5ce3eb35765828eff84b8c887b50fa27444f8068bffb7c76731fb0bd025d7a",
+    "entries": [
+      {
+        "name": "echo",
+        "digest": "cb81432a33b1146ec8706e6024adf1a92371af79e188ede9aa2b3f8279dae7b1",
+        "surface": {
+          "description": "Echo text back.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            }
+          },
+          "name": "echo"
+        }
+      },
+      {
+        "name": "search",
+        "digest": "142339df60feaa3a352f8f9af1abc06a7f4bd861178722b4075f1070321743fb",
+        "surface": {
+          "description": "Full-text search over tickets.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "q"
+            ]
+          },
+          "name": "search",
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "title": "Search tickets"
+        }
+      }
+    ]
+  }
+}
