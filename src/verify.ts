@@ -339,14 +339,14 @@ export function parseLockfile(doc: unknown): Lockfile {
     o.canonicalization !== "surfacepin-jcs-v2"
   ) {
     throw new SurfacePinError(
-      `unsupported canonicalization: ${String(o.canonicalization)}`,
+      `unsupported canonicalization: ${JSON.stringify(o.canonicalization)}`,
     );
   }
   const canon = o.canonicalization as Canonicalization;
   // jcs-v2 exists only in lockfile v3 (1.6.0+). Older formats are always jcs-v1.
   if (canon === "surfacepin-jcs-v2" && o.version !== 3) {
     throw new SurfacePinError(
-      `canonicalization surfacepin-jcs-v2 requires lockfile version 3 (got ${String(o.version)})`,
+      `canonicalization surfacepin-jcs-v2 requires lockfile version 3 (got ${JSON.stringify(o.version)})`,
     );
   }
   const titles = canon === "surfacepin-jcs-v2";
@@ -404,7 +404,7 @@ export function parseLockfile(doc: unknown): Lockfile {
     return lock;
   }
 
-  throw new SurfacePinError(`unsupported lockfile version: ${String(o.version)}`);
+  throw new SurfacePinError(`unsupported lockfile version: ${JSON.stringify(o.version)}`);
 }
 
 /** Surface kinds present in a lockfile. */

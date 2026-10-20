@@ -1,6 +1,6 @@
 /**
- * surfacepin-jcs-v1 — RFC 8785 JCS-compatible deterministic JSON encoding.
- * See SPEC.md §3.
+ * SurfacePin canonical JSON (shared by surfacepin-jcs-v1 and surfacepin-jcs-v2): RFC 8785
+ * JCS-compatible deterministic JSON encoding. See SPEC.md §3.
  */
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -57,7 +57,7 @@ function escapeString(s: string): string {
  */
 function serializeNumber(n: number): string {
   if (!Number.isFinite(n)) {
-    throw new Error(`non-finite number not allowed in surfacepin-jcs-v1: ${n}`);
+    throw new Error(`non-finite number not allowed in surfacepin canonical JSON (jcs-v1 and jcs-v2): ${n}`);
   }
   // JSON.stringify uses the ES ToString number rules JCS relies on.
   return JSON.stringify(n);
@@ -100,7 +100,7 @@ export function canonicalize(value: unknown): string {
     return `{${parts.join(",")}}`;
   }
 
-  throw new Error(`unsupported JSON type in surfacepin-jcs-v1: ${t}`);
+  throw new Error(`unsupported JSON type in surfacepin canonical JSON (jcs-v1 and jcs-v2): ${t}`);
 }
 
 /** UTF-8 bytes of the canonical form. */
