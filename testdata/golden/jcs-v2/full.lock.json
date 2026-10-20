@@ -1,0 +1,216 @@
+{
+  "version": 3,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v2",
+  "root": "07dee637abb8eb13c64d4ef779a0e2037a6fe3cf3217dee1a85dda7dc5fb6945",
+  "tools": {
+    "root": "ea2506ae701651e262562e2746940a4f2c3dffb886352456262ef12b7074f882",
+    "entries": [
+      {
+        "name": "Zeta",
+        "digest": "99f04f859157d061c2ae6d8ca9b2235599c100e1cec2874a345a3311510accba",
+        "surface": {
+          "description": "Uppercase sorts before lowercase.",
+          "inputSchema": {
+            "type": "object"
+          },
+          "name": "Zeta",
+          "outputSchema": {}
+        }
+      },
+      {
+        "name": "export_records",
+        "digest": "c52077718dca25cd0b63c415c3435de826bf5430777bdca12dd3817589fab2b6",
+        "surface": {
+          "description": "Export ticket records to an approved destination.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "destination": {
+                "type": "string",
+                "enum": [
+                  "s3",
+                  "gcs"
+                ]
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "default": 100
+              }
+            },
+            "required": [
+              "destination"
+            ],
+            "additionalProperties": false
+          },
+          "name": "export_records",
+          "annotations": {
+            "title": "Export",
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": false,
+            "openWorldHint": true,
+            "x-vendor-review": "pending"
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              }
+            }
+          },
+          "title": "Export Records"
+        }
+      },
+      {
+        "name": "ping",
+        "digest": "35abed201f560ee252b2277201026c367e4db8c6a369b74784f040686dcfc3dc",
+        "surface": {
+          "description": "",
+          "inputSchema": {},
+          "name": "ping"
+        }
+      },
+      {
+        "name": "ünïcode",
+        "digest": "c444ab0b4b042c5020dcd4db26fda6ce7caa9f24a111985e0a9d183fbba0f0af",
+        "surface": {
+          "description": "Escapes: \"q\" \\ / \b \f \n \r \t \u0000 \u0001 \u001f; kept raw:  é € 😀    ",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "€": {
+                "const": "euro"
+              },
+              "é": {
+                "const": "e-acute"
+              },
+              "😀": {
+                "const": "emoji"
+              },
+              "｡": {
+                "const": "halfwidth"
+              },
+              "B": {
+                "const": "upper"
+              },
+              "a": {
+                "const": "lower"
+              },
+              "": {
+                "const": "empty key"
+              }
+            },
+            "examples": [
+              [
+                1e+21,
+                1e-7,
+                0.1,
+                0,
+                100,
+                1.5e+300,
+                123456789012345680000,
+                5e-324,
+                -12.5,
+                0.000001,
+                100
+              ],
+              [
+                true,
+                false,
+                null,
+                [],
+                {}
+              ]
+            ]
+          },
+          "name": "ünïcode",
+          "title": "Ünïcode — “quotes” ✓"
+        }
+      }
+    ]
+  },
+  "resources": {
+    "root": "991e67b51ba98918d5d468abba01e418c9d4dba0a19ef622b563e66e50c312a3",
+    "entries": [
+      {
+        "uri": "db://tickets",
+        "digest": "0a1105bb37a3d4af0a388f950cdb8d1c3cadbe2d21ad3cf5f7b1f87b6eaf593f",
+        "surface": {
+          "description": "",
+          "mimeType": "",
+          "name": "tickets",
+          "uri": "db://tickets"
+        }
+      },
+      {
+        "uri": "file:///docs/readme.md",
+        "digest": "3b77813fd95ad4605b3b3294ed536135cb0b2f4a9d6f121c108d816d93d3ea70",
+        "surface": {
+          "description": "Top-level readme.",
+          "mimeType": "text/markdown",
+          "name": "readme",
+          "uri": "file:///docs/readme.md",
+          "title": "Project README"
+        }
+      }
+    ]
+  },
+  "prompts": {
+    "root": "862641f72f5baa010a3fc53340261ad49cbd01db0898dc975878eb2a2af62629",
+    "entries": [
+      {
+        "name": "greet",
+        "digest": "733b6f2a0730237bf433090f4f19a2c8b2e2b669e006bea358b2a7fea9c4b852",
+        "surface": {
+          "arguments": [],
+          "description": "",
+          "name": "greet"
+        }
+      },
+      {
+        "name": "summarize",
+        "digest": "7463cee7b6a7c1a947024c08548a29ba64c39274dfeb33b7111b4696c33a2fb8",
+        "surface": {
+          "arguments": [
+            {
+              "description": "Ticket number.",
+              "name": "id",
+              "required": true,
+              "title": "Ticket id"
+            },
+            {
+              "description": "",
+              "name": "audience",
+              "required": false
+            },
+            {
+              "description": "",
+              "name": "format",
+              "required": false
+            }
+          ],
+          "description": "Summarize one ticket.",
+          "name": "summarize",
+          "title": "Summarize a ticket"
+        }
+      }
+    ]
+  },
+  "instructions": {
+    "root": "2546bedcd4683da6bded49fc85732f1ae75f781efbaf3af7dfb789a160577ebd",
+    "entries": [
+      {
+        "name": "instructions",
+        "digest": "c144dc1c1822ef2a28ef12819fc1ded19f7e7e75e31995006018c482970b2cad",
+        "surface": {
+          "name": "instructions",
+          "text": "Call ping before export_records.\nNever export without approval."
+        }
+      }
+    ]
+  }
+}

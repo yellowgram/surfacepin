@@ -1,0 +1,1 @@
+{"description":"Echo text back.","inputSchema":{"properties":{"text":{"type":"string"}},"type":"object"},"name":"echo"}

@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v1",
+  "root": "21e88a5125e9d687ef27d1fbe4e3259c20a0fd6b0b8a0300d5cc3d5fbb371317",
+  "tools": {
+    "root": "eca572b549d73a6db0c8c2a44f865982c67aaf291f4c57d80dfd6031af62c2f2",
+    "entries": [
+      {
+        "name": "echo",
+        "digest": "f35d75b2245239a726029a0248d0c740479b8d6f7eb2b48b4cb14e1c5b1cad5f"
+      },
+      {
+        "name": "ping",
+        "digest": "c2021025279d6e9c71b78a6c99ecb6c4d82ef96a9ac76756036f2b8b8de51104"
+      }
+    ]
+  },
+  "resources": {
+    "root": "c72a37d7a376fd78edd342d6d60ef07e58b01186940f895d50affa3498a07f52",
+    "entries": [
+      {
+        "uri": "file:///data/config.json",
+        "digest": "c5927d263bbb986cdee55a36d3ab1ea849bfb6317d009fb2d7c120b15540de9e"
+      },
+      {
+        "uri": "file:///docs/readme.md",
+        "digest": "5f3c889850dfe37c001cd15ae36ae4dc3588e6643bc7e1773ccc038196db422f"
+      }
+    ]
+  },
+  "prompts": {
+    "root": "6e21d1309c7fc2dc94a0f858353989915cd60043b67f691910c95bb55f8b3803",
+    "entries": [
+      {
+        "name": "greet",
+        "digest": "33580c8a565986ec263ee8c6c2e5fa4ca0ad0526c91efbcd7f84df6ac4b60b9a"
+      },
+      {
+        "name": "summarize",
+        "digest": "bdc675d2c1f1dbe4f95f8c44113e8b2540dd1fc9a45931f0136fe641b7590a4a"
+      }
+    ]
+  }
+}

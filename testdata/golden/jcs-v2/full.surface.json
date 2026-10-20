@@ -1,0 +1,90 @@
+{
+  "tools": [
+    {
+      "name": "export_records",
+      "title": "Export Records",
+      "description": "Export ticket records to an approved destination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "destination": { "type": "string", "enum": ["s3", "gcs"] },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 }
+        },
+        "required": ["destination"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": { "count": { "type": "integer" } }
+      },
+      "annotations": {
+        "title": "Export",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "x-vendor-review": "pending"
+      },
+      "icons": [{ "src": "https://example.com/export.png" }],
+      "_meta": { "example.com/build": 42 }
+    },
+    {
+      "name": "ping"
+    },
+    {
+      "name": "Zeta",
+      "description": "Uppercase sorts before lowercase.",
+      "inputSchema": { "type": "object" },
+      "outputSchema": {},
+      "annotations": {}
+    },
+    {
+      "name": "ünïcode",
+      "title": "Ünïcode — “quotes” ✓",
+      "description": "Escapes: \"q\" \\ / \b \f \n \r \t \u0000 \u0001 \u001f; kept raw: \u007f é € 😀 \u2028 \u2029",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "€": { "const": "euro" },
+          "é": { "const": "e-acute" },
+          "😀": { "const": "emoji" },
+          "\uff61": { "const": "halfwidth" },
+          "B": { "const": "upper" },
+          "a": { "const": "lower" },
+          "": { "const": "empty key" }
+        },
+        "examples": [
+          [1e21, 1E-7, 0.1, -0, 100, 1.5e300, 123456789012345678901, 5e-324, -12.50, 0.000001, 1e+2],
+          [true, false, null, [], {}]
+        ]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "file:///docs/readme.md",
+      "name": "readme",
+      "title": "Project README",
+      "mimeType": "text/markdown",
+      "description": "Top-level readme.",
+      "size": 2048,
+      "annotations": { "audience": ["user"] },
+      "_meta": { "etag": "abc" }
+    },
+    { "uri": "db://tickets", "name": "tickets" }
+  ],
+  "prompts": [
+    {
+      "name": "summarize",
+      "title": "Summarize a ticket",
+      "description": "Summarize one ticket.",
+      "arguments": [
+        { "name": "id", "title": "Ticket id", "description": "Ticket number.", "required": true },
+        { "name": "audience", "required": false },
+        { "name": "format" }
+      ]
+    },
+    { "name": "greet" }
+  ],
+  "instructions": "Call ping before export_records.\nNever export without approval."
+}

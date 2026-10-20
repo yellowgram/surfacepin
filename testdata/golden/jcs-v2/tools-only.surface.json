@@ -1,0 +1,16 @@
+{
+  "tools": [
+    {
+      "name": "search",
+      "title": "Search tickets",
+      "description": "Full-text search over tickets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "q": { "type": "string", "minLength": 1 } },
+        "required": ["q"]
+      },
+      "annotations": { "readOnlyHint": true }
+    },
+    { "name": "echo", "description": "Echo text back.", "inputSchema": { "type": "object", "properties": { "text": { "type": "string" } } } }
+  ]
+}

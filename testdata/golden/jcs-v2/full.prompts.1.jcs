@@ -1,0 +1,1 @@
+{"arguments":[{"description":"Ticket number.","name":"id","required":true,"title":"Ticket id"},{"description":"","name":"audience","required":false},{"description":"","name":"format","required":false}],"description":"Summarize one ticket.","name":"summarize","title":"Summarize a ticket"}
