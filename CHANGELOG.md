@@ -12,7 +12,7 @@ Existing lockfiles keep verifying exactly as in 1.5. Re-lock to get the new pins
 - **Fix:** names and field paths containing control characters are printed JSON-quoted, so a server-chosen name can't forge report lines.
 - **Fix:** a server that repeats a list cursor, or returns more than 10,000 pages, is an error instead of a loop until the timeout.
 - **Action:** on drift it writes the diff to the job summary and puts an error annotation on the lockfile. It turns off workflow commands while server text is printed, no longer glob-expands `server-args`, installs with `npm ci` from the tag, and drops the unpinned `npm install -g` fallback. Pin `@v1.6.0`.
-- The MCP client identifies itself with the package version (it said 1.2.0). `surfacepin --version` was added.
+- The MCP client identifies itself with the package version (it said 1.2.0). `surfacepin --version` was added. The npm package no longer ships compiled tests.
 - Docs: README rewritten (quickstart, CI, comparison with mcp-scan, limits and threat model). Internal planning and status files removed. A stderr tip added on main after 1.5.0 (never released) is gone.
 
 ## 1.5.0
