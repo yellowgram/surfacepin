@@ -26,7 +26,7 @@ CLI and Action are reference clients of this document.
 |------|------------|--------------|---------------|
 | `tools` | `tools/list` | `name` | `name`, `title`, `description`, `inputSchema`, `annotations` (including `annotations.title`), `outputSchema` |
 | `resources` | `resources/list` | `uri` | `uri`, `name`, `title`, `description`, `mimeType` |
-| `prompts` | `prompts/list` | `name` | `name`, `title`, `description`, `arguments` |
+| `prompts` | `prompts/list` | `name` | `name`, `title`, `description`, `arguments` (each argument's `name`, `description`, `required`, and in jcs-v2 its `title`; see §2.4) |
 | `instructions` | `initialize` result | `"instructions"` | `text` |
 
 Under `surfacepin-jcs-v1` (locks written by 1.5 and earlier) no `title` is hashed and the `instructions` kind does not exist. See §3.0.
