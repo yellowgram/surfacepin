@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
 import { pin, verify, formatDiff, formatDiffJson } from "./api.js";
+import { lockfileKinds, parseLockfile } from "./verify.js";
+import { VERSION } from "./version.js";
 import { fetchSurfacesViaStdio } from "./mcp-stdio.js";
 import {
   ALL_SURFACE_KINDS,
@@ -12,26 +14,36 @@ function usage(): never {
   console.error(`surfacepin — lock exact hashes of MCP tools/resources/prompts surfaces
 
 Usage:
-  surfacepin lock   <surface.json> [-o <lockfile>] [--surface tools[,resources][,prompts]]
+  surfacepin --version
+  surfacepin lock   <surface.json> [-o <lockfile>] [--surface tools[,resources][,prompts][,instructions]]
   surfacepin lock   --stdio -- <command> [args...] [-o <lockfile>] [--surface ...]
-  surfacepin verify <surface.json> <lockfile> [--surface ...]
-  surfacepin verify --stdio <lockfile> -- <command> [args...] [--surface ...]
+  surfacepin verify <surface.json> <lockfile> [--surface ...] [--json]
+  surfacepin verify --stdio [--surface ...] [--json] <lockfile> -- <command> [args...]
   surfacepin diff   <surface.json> <lockfile> [--surface ...] [--json]
-  surfacepin diff   --stdio <lockfile> -- <command> [args...] [--surface ...] [--json]
+  surfacepin diff   --stdio [--surface ...] [--json] <lockfile> -- <command> [args...]
 
---surface defaults to "tools". New locks are lockfile **v3** (section roots +
-embedded \`surface\` payloads for structured field-diff). Verify still accepts
-v1 (tools-only digests) and v2 (multi-surface digests).
+--surface takes a comma list of tools, resources, prompts, instructions
+(instructions = the server's initialize.instructions text).
+lock: --surface defaults to "tools".
+verify/diff: --surface defaults to the surfaces stored in the lockfile; if you
+pass it, it must match them exactly.
 
-File mode accepts a combined dump: { "tools": [...], "resources": [...], "prompts": [...] }
-(or List*Result-shaped objects with those keys). Missing selected keys → empty.
+New locks are lockfile v3 with canonicalization surfacepin-jcs-v2 (hashes
+titles too). Verify still accepts v1, v2 and v3 locks written by older
+versions (surfacepin-jcs-v1) and checks them exactly as before.
 
-Live --stdio calls tools/list, resources/list, prompts/list as selected.
+File mode accepts a combined dump: { "tools": [...], "resources": [...],
+"prompts": [...], "instructions": "..." } (or List*Result-shaped objects with
+those keys). Missing selected keys are treated as empty.
+
+Live --stdio runs initialize, then tools/list, resources/list, prompts/list as
+selected (all pages).
 Servers lacking a capability → empty list + stderr note.
 
-diff prints ADDED/REMOVED/CHANGED ids; for CHANGED tools/resources/prompts with
-a v3 lock, also prints path-level field changes (COMPATIBLE / BREAKING / HINT_FLIP).
---json emits the DiffResult object.
+verify and diff print the same report: ADDED/REMOVED/CHANGED ids and, with a v3
+lock, path-level field changes (COMPATIBLE / BREAKING / HINT_FLIP). These labels
+describe compatibility for callers, not safety: review every change.
+--json prints the DiffResult object instead (same exit codes).
 
 Exit codes: 0 match/ok, 1 drift, 2 usage/error
 
@@ -70,7 +82,7 @@ function parseSurfaceFlag(raw: string): SurfaceKind[] {
   for (const p of parts) {
     if (!(ALL_SURFACE_KINDS as readonly string[]).includes(p)) {
       throw new SurfacePinError(
-        `unknown surface kind "${p}" (expected tools, resources, prompts)`,
+        `unknown surface kind "${p}" (expected tools, resources, prompts, instructions)`,
       );
     }
     const k = p as SurfaceKind;
@@ -86,7 +98,8 @@ function parseSurfaceFlag(raw: string): SurfaceKind[] {
 interface ParsedArgs {
   cmd: "lock" | "verify" | "diff";
   stdio: boolean;
-  surfaces: SurfaceKind[];
+  /** Undefined when --surface was not given (verify/diff then use the lockfile's). */
+  surfaces?: SurfaceKind[];
   surfacePath?: string;
   lockPath?: string;
   outPath?: string;
@@ -98,12 +111,16 @@ interface ParsedArgs {
 function parseArgs(argv: string[]): ParsedArgs {
   const args = argv.slice(2);
   if (args.length === 0 || args[0] === "-h" || args[0] === "--help") usage();
+  if (args[0] === "--version" || args[0] === "-v") {
+    console.log(VERSION);
+    process.exit(0);
+  }
   const cmd = args[0];
   if (cmd !== "lock" && cmd !== "verify" && cmd !== "diff") usage();
 
   let stdio = false;
   let outPath: string | undefined;
-  let surfaces: SurfaceKind[] = ["tools"];
+  let surfaces: SurfaceKind[] | undefined;
   let json = false;
   const positional: string[] = [];
   let command: string[] | undefined;
@@ -141,8 +158,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     positional.push(a);
   }
 
-  if (json && cmd !== "diff") {
-    throw new SurfacePinError("--json is only valid with the diff command");
+  if (json && cmd === "lock") {
+    throw new SurfacePinError("--json is only valid with verify and diff");
   }
 
   if (stdio) {
@@ -192,13 +209,16 @@ function parseArgs(argv: string[]): ParsedArgs {
   };
 }
 
-async function loadSurfaceDoc(opts: ParsedArgs): Promise<unknown> {
+async function loadSurfaceDoc(
+  opts: ParsedArgs,
+  surfaces: SurfaceKind[],
+): Promise<unknown> {
   if (opts.stdio) {
     const [exe, ...args] = opts.command!;
     return fetchSurfacesViaStdio({
       command: exe,
       args,
-      surfaces: opts.surfaces,
+      surfaces,
     });
   }
   return readJson(opts.surfacePath!);
@@ -207,10 +227,11 @@ async function loadSurfaceDoc(opts: ParsedArgs): Promise<unknown> {
 async function main(): Promise<void> {
   try {
     const opts = parseArgs(process.argv);
-    const doc = await loadSurfaceDoc(opts);
 
     if (opts.cmd === "lock") {
-      const { text, root, computed } = pin(doc, { surfaces: opts.surfaces });
+      const surfaces = opts.surfaces ?? ["tools"];
+      const doc = await loadSurfaceDoc(opts, surfaces);
+      const { text, root, computed } = pin(doc, { surfaces });
       writeFileSync(opts.outPath!, text, "utf8");
       console.log(`Wrote ${opts.outPath}`);
       console.log(`ROOT ${root}`);
@@ -219,13 +240,23 @@ async function main(): Promise<void> {
         console.log(`RESOURCES ${computed.resources.entries.length}`);
       if (computed.prompts)
         console.log(`PROMPTS ${computed.prompts.entries.length}`);
+      if (computed.instructions)
+        console.log(`INSTRUCTIONS ${computed.instructions.entries.length}`);
       process.exit(0);
     }
 
-    const checked = verify(doc, readJson(opts.lockPath!), {
-      surfaces: opts.surfaces,
-    });
-    if (opts.cmd === "diff" && opts.json) {
+    // Read the lock first: it decides which surfaces to fetch.
+    const lock = parseLockfile(readJson(opts.lockPath!));
+    const surfaces = opts.surfaces ?? lockfileKinds(lock);
+    const doc = await loadSurfaceDoc(opts, surfaces);
+    const checked = verify(doc, lock, { surfaces });
+    if (lock.canonicalization === "surfacepin-jcs-v1") {
+      console.error(
+        "note: this lockfile predates surfacepin 1.6 (surfacepin-jcs-v1) and does not pin titles. " +
+          "Re-run surfacepin lock after reviewing the surface to pin them.",
+      );
+    }
+    if (opts.json) {
       process.stdout.write(formatDiffJson(checked.diff));
     } else {
       console.log(formatDiff(checked.diff));

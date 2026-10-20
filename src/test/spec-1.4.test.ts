@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const testdata = join(here, "..", "..", "testdata");
 
-describe("spec 1.4 — annotations + outputSchema hashing", () => {
+describe("spec 1.4 — annotations + outputSchema hashing (jcs-v1 profile)", () => {
   it("existing goldens unchanged for tools without kept annotations/outputSchema", () => {
     const tools = JSON.parse(
       readFileSync(join(testdata, "basic.tools.json"), "utf8"),
@@ -22,7 +22,7 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
     const golden = JSON.parse(
       readFileSync(join(testdata, "basic.v3.lock.json"), "utf8"),
     );
-    const { lockfile } = computeSurface(tools);
+    const { lockfile } = computeSurface(tools, undefined, "surfacepin-jcs-v1");
     assert.deepEqual(lockfile, golden);
   });
 
@@ -33,7 +33,7 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
     const golden = JSON.parse(
       readFileSync(join(testdata, "annotations-output.v3.lock.json"), "utf8"),
     );
-    const { lockfile } = computeSurface(tools);
+    const { lockfile } = computeSurface(tools, undefined, "surfacepin-jcs-v1");
     assert.deepEqual(lockfile, golden);
     const v3 = lockfile as LockfileV3;
     const surf = v3.tools!.entries[0].surface as {
@@ -48,7 +48,7 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
     assert.equal(surf.title, undefined);
   });
 
-  it("title / icons / _meta do not change digest", () => {
+  it("jcs-v1: title / icons / _meta do not change digest", () => {
     const base = {
       tools: [
         {
@@ -70,14 +70,14 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
         },
       ],
     };
-    assert.equal(computeSurface(base).root, computeSurface(decorated).root);
+    assert.equal(computeSurface(base, undefined, "surfacepin-jcs-v1").root, computeSurface(decorated, undefined, "surfacepin-jcs-v1").root);
     assert.equal(
-      computeSurface(base).tools!.entries[0].digest,
-      computeSurface(decorated).tools!.entries[0].digest,
+      computeSurface(base, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(decorated, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
   });
 
-  it("title / icons / _meta absent from diff paths", () => {
+  it("jcs-v1: title / icons / _meta absent from diff paths", () => {
     const base = {
       tools: [
         {
@@ -87,7 +87,7 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
         },
       ],
     };
-    const { lockfile } = computeSurface(base);
+    const { lockfile } = computeSurface(base, undefined, "surfacepin-jcs-v1");
     const drifted = {
       tools: [
         {
@@ -113,7 +113,7 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
     }
   });
 
-  it("annotations.title dropped → same digest as no title", () => {
+  it("jcs-v1: annotations.title dropped → same digest as no title", () => {
     const a = {
       tools: [
         {
@@ -135,8 +135,8 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
       ],
     };
     assert.equal(
-      computeSurface(a).tools!.entries[0].digest,
-      computeSurface(b).tools!.entries[0].digest,
+      computeSurface(a, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(b, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
   });
 
@@ -162,8 +162,8 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
       ],
     };
     assert.notEqual(
-      computeSurface(a).tools!.entries[0].digest,
-      computeSurface(b).tools!.entries[0].digest,
+      computeSurface(a, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(b, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
   });
 
@@ -206,8 +206,8 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
       ],
     };
     assert.notEqual(
-      computeSurface(absent).tools!.entries[0].digest,
-      computeSurface(explicitDefaults).tools!.entries[0].digest,
+      computeSurface(absent, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(explicitDefaults, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
   });
 
@@ -226,8 +226,8 @@ describe("spec 1.4 — annotations + outputSchema hashing", () => {
       ],
     };
     assert.notEqual(
-      computeSurface(absent).tools!.entries[0].digest,
-      computeSurface(emptyObj).tools!.entries[0].digest,
+      computeSurface(absent, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(emptyObj, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
     const desc = normalizeTools(emptyObj.tools as never);
     assert.deepEqual(desc[0].outputSchema, {});
@@ -461,8 +461,8 @@ describe("spec 1.4 — dual kinds + invariants", () => {
       ],
     };
     assert.equal(
-      computeSurface(a).tools!.entries[0].digest,
-      computeSurface(b).tools!.entries[0].digest,
+      computeSurface(a, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(b, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
   });
 
@@ -480,7 +480,7 @@ describe("spec 1.4 — dual kinds + invariants", () => {
     assert.equal(diffSurface(tools, v3).match, true);
 
     // Synthesize v2 from current compute (digests identical)
-    const computed = computeSurface(tools);
+    const computed = computeSurface(tools, undefined, "surfacepin-jcs-v1");
     const v2 = parseLockfile({
       version: 2,
       algorithm: "sha256",
@@ -522,12 +522,12 @@ describe("spec 1.4 — dual kinds + invariants", () => {
       ],
     };
     assert.notEqual(
-      computeSurface(plain).tools!.entries[0].digest,
-      computeSurface(withAnn).tools!.entries[0].digest,
+      computeSurface(plain, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(withAnn, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
     assert.notEqual(
-      computeSurface(plain).tools!.entries[0].digest,
-      computeSurface(withOut).tools!.entries[0].digest,
+      computeSurface(plain, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
+      computeSurface(withOut, undefined, "surfacepin-jcs-v1").tools!.entries[0].digest,
     );
   });
 
@@ -565,7 +565,7 @@ describe("spec 1.4 — dual kinds + invariants", () => {
         },
       ],
     };
-    const { lockfile } = computeSurface(base);
+    const { lockfile } = computeSurface(base, undefined, "surfacepin-jcs-v1");
     const drifted = {
       tools: [
         {

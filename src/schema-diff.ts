@@ -549,8 +549,7 @@ function diffAnnotations(
 
   const keys = new Set([...oldKeys, ...newKeys]);
   for (const key of [...keys].sort(cmpStr)) {
-    // title is never hashed / never in diff paths
-    if (key === "title") continue;
+    // annotations.title only reaches here from jcs-v2 descriptors (v1 drops it).
     const ov = oldO[key];
     const nv = newO[key];
     const oldPresent = oldKeys.has(key);
@@ -603,10 +602,19 @@ function diffOutputSchema(
   out.push(...diffJsonSchema(oldS, newS, "outputSchema"));
 }
 
+/** Title diff (jcs-v2). Display text, so COMPATIBLE for callers; review it like a description. */
+function diffTitle(out: FieldChange[], oldT: string | undefined, newT: string | undefined): void {
+  if (oldT === newT) return;
+  const kind: ChangeKind =
+    oldT === undefined ? "added" : newT === undefined ? "removed" : "changed";
+  push(out, "title", kind, "non-breaking", oldT, newT);
+}
+
 /** Diff two tool descriptors (hashed fields). */
 export function diffToolDescriptors(
   oldD: {
     name: string;
+    title?: string;
     description: string;
     inputSchema: Record<string, unknown>;
     annotations?: Record<string, unknown>;
@@ -614,6 +622,7 @@ export function diffToolDescriptors(
   },
   newD: {
     name: string;
+    title?: string;
     description: string;
     inputSchema: Record<string, unknown>;
     annotations?: Record<string, unknown>;
@@ -627,6 +636,7 @@ export function diffToolDescriptors(
   if (oldD.description !== newD.description) {
     push(out, "description", "changed", "non-breaking", oldD.description, newD.description);
   }
+  diffTitle(out, oldD.title, newD.title);
   out.push(...diffJsonSchema(oldD.inputSchema, newD.inputSchema, "inputSchema"));
   diffAnnotations(out, oldD.annotations, newD.annotations);
   diffOutputSchema(out, oldD.outputSchema, newD.outputSchema);
@@ -636,8 +646,8 @@ export function diffToolDescriptors(
 
 /** Diff two resource descriptors. */
 export function diffResourceDescriptors(
-  oldD: { uri: string; name: string; description: string; mimeType: string },
-  newD: { uri: string; name: string; description: string; mimeType: string },
+  oldD: { uri: string; name: string; title?: string; description: string; mimeType: string },
+  newD: { uri: string; name: string; title?: string; description: string; mimeType: string },
 ): FieldChange[] {
   const out: FieldChange[] = [];
   if (oldD.uri !== newD.uri) {
@@ -653,6 +663,7 @@ export function diffResourceDescriptors(
     // mimeType change can break clients expecting a type — classify breaking
     push(out, "mimeType", "changed", "breaking", oldD.mimeType, newD.mimeType);
   }
+  diffTitle(out, oldD.title, newD.title);
   out.sort((a, b) => cmpStr(a.path, b.path) || cmpStr(a.kind, b.kind));
   return out;
 }
@@ -661,11 +672,13 @@ export function diffResourceDescriptors(
 export function diffPromptDescriptors(
   oldD: {
     name: string;
+    title?: string;
     description: string;
     arguments: Array<{ name: string; description: string; required: boolean }>;
   },
   newD: {
     name: string;
+    title?: string;
     description: string;
     arguments: Array<{ name: string; description: string; required: boolean }>;
   },
@@ -677,6 +690,7 @@ export function diffPromptDescriptors(
   if (oldD.description !== newD.description) {
     push(out, "description", "changed", "non-breaking", oldD.description, newD.description);
   }
+  diffTitle(out, oldD.title, newD.title);
 
   const oldMap = new Map(oldD.arguments.map((a) => [a.name, a]));
   const newMap = new Map(newD.arguments.map((a) => [a.name, a]));
@@ -742,11 +756,23 @@ export function diffPromptDescriptors(
 }
 
 /** Format field changes as stable sorted lines for CLI. */
+/**
+ * Print an id on one line. Ids come from the server, so one holding a newline
+ * or other control character could forge report lines (or CI log commands).
+ * Such ids, and ids with leading/trailing spaces, are printed JSON-quoted.
+ */
+export function displayId(id: string): string {
+  // eslint-disable-next-line no-control-regex
+  return /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(id) || id.trim() !== id || id.startsWith('"')
+    ? JSON.stringify(id)
+    : id;
+}
+
 export function formatFieldChanges(changes: FieldChange[], indent = "        "): string[] {
   const lines: string[] = [];
   for (const c of changes) {
     const tag = normalizeKinds(c.kinds).join(" ");
-    const line = `${indent}${c.kind.toUpperCase().padEnd(7)} ${c.path} (${tag})`;
+    const line = `${indent}${c.kind.toUpperCase().padEnd(7)} ${displayId(c.path)} (${tag})`;
     if (c.kind === "changed" && c.oldValue !== undefined && c.newValue !== undefined) {
       lines.push(line);
       lines.push(`${indent}        ${c.oldValue} -> ${c.newValue}`);

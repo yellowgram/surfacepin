@@ -4,6 +4,7 @@
  * document shape the file path already consumes.
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { VERSION } from "./version.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { SurfaceDoc } from "./normalize.js";
 import { SurfacePinError, type SurfaceKind } from "./types.js";
@@ -58,15 +59,30 @@ function childEnv(extra?: Record<string, string>): Record<string, string> | unde
   return out;
 }
 
+/** Upper bound on pages per list call (each page is a round-trip). */
+const MAX_LIST_PAGES = 10_000;
+
 async function listAllPages<T>(
   listPage: (cursor?: string) => Promise<{ items: T[]; nextCursor?: string }>,
 ): Promise<T[]> {
   const all: T[] = [];
+  const seen = new Set<string>();
   let cursor: string | undefined;
   do {
     const page = await listPage(cursor);
     all.push(...page.items);
     cursor = page.nextCursor;
+    if (cursor) {
+      // A server that repeats a cursor would loop until the timeout while
+      // memory grows. Fail closed instead.
+      if (seen.has(cursor)) {
+        throw new SurfacePinError(`server repeated list cursor ${JSON.stringify(cursor)}`);
+      }
+      seen.add(cursor);
+      if (seen.size >= MAX_LIST_PAGES) {
+        throw new SurfacePinError(`server returned more than ${MAX_LIST_PAGES} list pages`);
+      }
+    }
   } while (cursor);
   return all;
 }
@@ -99,7 +115,7 @@ export async function fetchSurfacesViaStdio(
 
   const client = new Client({
     name: "surfacepin",
-    version: "1.2.0",
+    version: VERSION,
   });
 
   const run = async (): Promise<SurfaceDoc> => {
@@ -150,6 +166,10 @@ export async function fetchSurfacesViaStdio(
           };
         })) as SurfaceDoc["prompts"];
       }
+    }
+
+    if (kinds.includes("instructions")) {
+      doc.instructions = client.getInstructions() ?? "";
     }
 
     await client.close();

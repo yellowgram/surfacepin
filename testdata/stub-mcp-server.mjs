@@ -2,7 +2,9 @@
 /**
  * Minimal MCP stdio stub for SurfacePin integration tests.
  * Speaks initialize + tools/list + resources/list + prompts/list
- * (+ optional tools pagination via SURFACEPIN_STUB_PAGE=1).
+ * (+ optional tools pagination via SURFACEPIN_STUB_PAGE=1, a cursor that
+ * never ends via SURFACEPIN_STUB_LOOP=1, and initialize.instructions via
+ * SURFACEPIN_STUB_INSTRUCTIONS).
  * Fixed payloads match testdata/basic.*.json.
  */
 import { createInterface } from "node:readline";
@@ -91,6 +93,9 @@ rl.on("line", (line) => {
         protocolVersion: msg.params?.protocolVersion ?? "2025-03-26",
         capabilities,
         serverInfo: { name: "surfacepin-stub", version: "0.0.0" },
+        ...(process.env.SURFACEPIN_STUB_INSTRUCTIONS
+          ? { instructions: process.env.SURFACEPIN_STUB_INSTRUCTIONS }
+          : {}),
       },
     });
     return;
@@ -101,6 +106,14 @@ rl.on("line", (line) => {
   }
 
   if (msg.method === "tools/list") {
+    if (process.env.SURFACEPIN_STUB_LOOP === "1") {
+      write({
+        jsonrpc: "2.0",
+        id: msg.id,
+        result: { tools: [ALL_TOOLS[0]], nextCursor: "again" },
+      });
+      return;
+    }
     if (!paginate) {
       write({
         jsonrpc: "2.0",

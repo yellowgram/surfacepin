@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { canonicalizeToBytes } from "./canonicalize.js";
 import type {
+  InstructionsDescriptor,
   PromptDescriptor,
   ResourceDescriptor,
   SurfaceKind,
@@ -24,23 +25,25 @@ export function toolDigest(descriptor: ToolDescriptor): string {
   if (descriptor.outputSchema !== undefined) {
     payload.outputSchema = descriptor.outputSchema;
   }
+  if (descriptor.title !== undefined) payload.title = descriptor.title;
   return sha256Hex(canonicalizeToBytes(payload));
 }
 
 /** Per-resource digest: uri, name, description, mimeType. */
 export function resourceDigest(descriptor: ResourceDescriptor): string {
-  const payload = {
+  const payload: Record<string, unknown> = {
     description: descriptor.description,
     mimeType: descriptor.mimeType,
     name: descriptor.name,
     uri: descriptor.uri,
   };
+  if (descriptor.title !== undefined) payload.title = descriptor.title;
   return sha256Hex(canonicalizeToBytes(payload));
 }
 
 /** Per-prompt digest: name, description, arguments (order preserved). */
 export function promptDigest(descriptor: PromptDescriptor): string {
-  const payload = {
+  const payload: Record<string, unknown> = {
     arguments: descriptor.arguments.map((a) => ({
       description: a.description,
       name: a.name,
@@ -49,7 +52,22 @@ export function promptDigest(descriptor: PromptDescriptor): string {
     description: descriptor.description,
     name: descriptor.name,
   };
+  if (descriptor.title !== undefined) payload.title = descriptor.title;
   return sha256Hex(canonicalizeToBytes(payload));
+}
+
+/** initialize.instructions digest. */
+export function instructionsDigest(descriptor: InstructionsDescriptor): string {
+  return sha256Hex(canonicalizeToBytes({ name: descriptor.name, text: descriptor.text }));
+}
+
+export function instructionsSectionRoot(
+  entries: Array<{ name: string; digest: string }>,
+): string {
+  return sectionRootDigest(
+    "surfacepin-instructions-v1",
+    entries.map((e) => [e.name, e.digest]),
+  );
 }
 
 /**
@@ -105,7 +123,8 @@ export function promptsSectionRoot(
 export function overallRootDigestV2(
   sections: Array<{ kind: SurfaceKind; root: string }>,
 ): string {
-  const order: SurfaceKind[] = ["tools", "resources", "prompts"];
+  // Appending a kind keeps every existing root unchanged (absent kinds add nothing).
+  const order: SurfaceKind[] = ["tools", "resources", "prompts", "instructions"];
   const map = new Map(sections.map((s) => [s.kind, s.root]));
   let payload = "surfacepin-v2\n";
   for (const kind of order) {

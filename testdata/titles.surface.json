@@ -1,0 +1,25 @@
+{
+  "tools": [
+    {
+      "name": "export_records",
+      "title": "Export Records",
+      "description": "Export ticket records to an approved destination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "destination": { "type": "string" } },
+        "required": ["destination"]
+      },
+      "annotations": { "title": "Export", "readOnlyHint": false },
+      "icons": [{ "src": "https://example.com/export.png" }],
+      "_meta": { "example.com/build": 42 }
+    },
+    { "name": "ping", "description": "Health check", "inputSchema": { "type": "object" } }
+  ],
+  "resources": [
+    { "uri": "file:///docs/readme.md", "name": "readme", "title": "Project README", "mimeType": "text/markdown" }
+  ],
+  "prompts": [
+    { "name": "summarize", "title": "Summarize a ticket", "arguments": [{ "name": "id", "required": true }] }
+  ],
+  "instructions": "Call ping before export_records."
+}

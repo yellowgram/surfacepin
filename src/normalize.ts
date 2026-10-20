@@ -1,7 +1,9 @@
 import {
   SurfacePinError,
+  type Canonicalization,
   type PromptArgumentDescriptor,
   type PromptDescriptor,
+  type InstructionsDescriptor,
   type PromptSurface,
   type ResourceDescriptor,
   type ResourceSurface,
@@ -14,11 +16,27 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** jcs-v2 hashes titles; jcs-v1 ignores them. */
+function hashesTitles(canon: Canonicalization): boolean {
+  return canon === "surfacepin-jcs-v2";
+}
+
+/** Read an optional title: absent/null -> undefined; non-string -> usage error. */
+function readTitle(raw: unknown, label: string): string | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "string") {
+    throw new SurfacePinError(`${label}.title must be a string when present`);
+  }
+  return raw;
+}
+
 /** Combined surface document from file or stdio adapter. */
 export interface SurfaceDoc {
   tools?: ToolSurface[];
   resources?: ResourceSurface[];
   prompts?: PromptSurface[];
+  /** initialize.instructions; absent or "" means the server sent none. */
+  instructions?: string;
 }
 
 /** Extract selected surfaces from a JSON document. Missing arrays → []. */
@@ -32,6 +50,13 @@ export function extractSurfaces(
   const out: SurfaceDoc = {};
   for (const kind of kinds) {
     const raw = doc[kind];
+    if (kind === "instructions") {
+      if (raw !== undefined && raw !== null && typeof raw !== "string") {
+        throw new SurfacePinError('surface JSON "instructions" must be a string when present');
+      }
+      out.instructions = typeof raw === "string" ? raw : "";
+      continue;
+    }
     if (raw === undefined) {
       out[kind] = [];
       continue;
@@ -51,7 +76,11 @@ export function extractTools(doc: unknown): ToolSurface[] {
   return extractSurfaces(doc, ["tools"]).tools ?? [];
 }
 
-export function normalizeTools(raw: ToolSurface[]): ToolDescriptor[] {
+export function normalizeTools(
+  raw: ToolSurface[],
+  canon: Canonicalization = "surfacepin-jcs-v1",
+): ToolDescriptor[] {
+  const titles = hashesTitles(canon);
   const seen = new Set<string>();
   const out: ToolDescriptor[] = [];
 
@@ -99,7 +128,7 @@ export function normalizeTools(raw: ToolSurface[]): ToolDescriptor[] {
       } else {
         const kept: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(rawAnn)) {
-          if (k === "title") continue;
+          if (k === "title" && !titles) continue;
           kept[k] = v;
         }
         if (Object.keys(kept).length > 0) {
@@ -121,6 +150,10 @@ export function normalizeTools(raw: ToolSurface[]): ToolDescriptor[] {
     }
 
     const desc: ToolDescriptor = { name: t.name, description, inputSchema };
+    if (titles) {
+      const title = readTitle(t.title, `tools[${i}]`);
+      if (title !== undefined) desc.title = title;
+    }
     if (annotations !== undefined) desc.annotations = annotations;
     if (outputSchema !== undefined) desc.outputSchema = outputSchema;
     out.push(desc);
@@ -130,7 +163,11 @@ export function normalizeTools(raw: ToolSurface[]): ToolDescriptor[] {
   return out;
 }
 
-export function normalizeResources(raw: ResourceSurface[]): ResourceDescriptor[] {
+export function normalizeResources(
+  raw: ResourceSurface[],
+  canon: Canonicalization = "surfacepin-jcs-v1",
+): ResourceDescriptor[] {
+  const titles = hashesTitles(canon);
   const seen = new Set<string>();
   const out: ResourceDescriptor[] = [];
 
@@ -170,7 +207,12 @@ export function normalizeResources(raw: ResourceSurface[]): ResourceDescriptor[]
       mimeType = r.mimeType;
     }
 
-    out.push({ uri: r.uri, name: r.name, description, mimeType });
+    const desc: ResourceDescriptor = { uri: r.uri, name: r.name, description, mimeType };
+    if (titles) {
+      const title = readTitle(r.title, `resources[${i}]`);
+      if (title !== undefined) desc.title = title;
+    }
+    out.push(desc);
   }
 
   out.sort((a, b) => (a.uri < b.uri ? -1 : a.uri > b.uri ? 1 : 0));
@@ -224,7 +266,11 @@ function normalizePromptArguments(
   return out;
 }
 
-export function normalizePrompts(raw: PromptSurface[]): PromptDescriptor[] {
+export function normalizePrompts(
+  raw: PromptSurface[],
+  canon: Canonicalization = "surfacepin-jcs-v1",
+): PromptDescriptor[] {
+  const titles = hashesTitles(canon);
   const seen = new Set<string>();
   const out: PromptDescriptor[] = [];
 
@@ -252,9 +298,19 @@ export function normalizePrompts(raw: PromptSurface[]): PromptDescriptor[] {
     }
 
     const args = normalizePromptArguments(p.arguments, i);
-    out.push({ name: p.name, description, arguments: args });
+    const desc: PromptDescriptor = { name: p.name, description, arguments: args };
+    if (titles) {
+      const title = readTitle(p.title, `prompts[${i}]`);
+      if (title !== undefined) desc.title = title;
+    }
+    out.push(desc);
   }
 
   out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return out;
+}
+
+/** initialize.instructions: one entry when non-empty, none otherwise. */
+export function normalizeInstructions(raw: string | undefined): InstructionsDescriptor[] {
+  return raw === undefined || raw === "" ? [] : [{ name: "instructions", text: raw }];
 }

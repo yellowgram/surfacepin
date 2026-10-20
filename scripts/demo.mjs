@@ -4,7 +4,8 @@
  *
  * 1. verify testdata/basic.tools.json against testdata/basic.v3.lock.json
  * 2. verify testdata/basic.surface.json against testdata/basic.multi.lock.json
- * 3. lock both fixtures and require the bytes to match those lockfiles
+ * 3. lock both fixtures: same digests and roots as those (1.5-era) lockfiles,
+ *    recorded under the current profile surfacepin-jcs-v2
  * 4. one-character description drift of basic.tools.json must fail verify
  *    and print a COMPATIBLE field-diff (pass/fail stays digest equality)
  *
@@ -57,14 +58,17 @@ function readJson(path) {
 
 function assertSameLock(actualPath, goldenPath) {
   try {
-    assert.deepEqual(readJson(actualPath), readJson(goldenPath));
+    const actual = readJson(actualPath);
+    assert.equal(actual.canonicalization, "surfacepin-jcs-v2");
+    // These fixtures have no titles, so jcs-v2 digests equal the jcs-v1 golden.
+    assert.deepEqual(actual, { ...readJson(goldenPath), canonicalization: "surfacepin-jcs-v2" });
   } catch {
     console.error(
       `demo: lock ${rel(actualPath)} does not match ${rel(goldenPath)}`,
     );
     process.exit(1);
   }
-  console.log(`lock matches ${rel(goldenPath)}`);
+  console.log(`lock matches ${rel(goldenPath)} (same digests; profile surfacepin-jcs-v2)`);
 }
 
 console.log("surfacepin demo — committed fixtures only (no network)");

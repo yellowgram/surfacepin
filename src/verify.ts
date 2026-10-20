@@ -3,12 +3,17 @@ import {
   diffPromptDescriptors,
   diffResourceDescriptors,
   diffToolDescriptors,
+  displayId,
   formatFieldChanges,
   type FieldChange,
 } from "./schema-diff.js";
+
+export { displayId };
 import {
   SurfacePinError,
+  type Canonicalization,
   type DiffResult,
+  type InstructionsDescriptor,
   type Lockfile,
   type LockfileV1,
   type LockfileV2,
@@ -28,7 +33,24 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
-function parseToolSurface(raw: unknown, label: string): ToolDescriptor | undefined {
+/** Embedded title (jcs-v2 locks only): absent -> undefined; non-string -> error. */
+function parseSurfaceTitle(
+  raw: Record<string, unknown>,
+  label: string,
+  titles: boolean,
+): string | undefined {
+  if (!titles || raw.title === undefined) return undefined;
+  if (typeof raw.title !== "string") {
+    throw new SurfacePinError(`${label}.surface.title must be a string when present`);
+  }
+  return raw.title;
+}
+
+function parseToolSurface(
+  raw: unknown,
+  label: string,
+  titles = false,
+): ToolDescriptor | undefined {
   if (raw === undefined) return undefined;
   if (!isPlainObject(raw)) {
     throw new SurfacePinError(`${label}.surface must be an object when present`);
@@ -53,10 +75,10 @@ function parseToolSurface(raw: unknown, label: string): ToolDescriptor | undefin
         `${label}.surface.annotations must be an object when present`,
       );
     }
-    // Drop title if somehow present in an old/corrupt lock; never hash/diff it.
+    // jcs-v1 never hashed annotations.title: drop it if an old/corrupt lock has one.
     const kept: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(raw.annotations)) {
-      if (k === "title") continue;
+      if (k === "title" && !titles) continue;
       kept[k] = v;
     }
     if (Object.keys(kept).length > 0) desc.annotations = kept;
@@ -72,12 +94,15 @@ function parseToolSurface(raw: unknown, label: string): ToolDescriptor | undefin
       desc.outputSchema = raw.outputSchema as Record<string, unknown>;
     }
   }
+  const title = parseSurfaceTitle(raw, label, titles);
+  if (title !== undefined) desc.title = title;
   return desc;
 }
 
 function parseResourceSurface(
   raw: unknown,
   label: string,
+  titles = false,
 ): ResourceDescriptor | undefined {
   if (raw === undefined) return undefined;
   if (!isPlainObject(raw)) {
@@ -95,17 +120,21 @@ function parseResourceSurface(
   if (typeof raw.mimeType !== "string") {
     throw new SurfacePinError(`${label}.surface.mimeType must be a string`);
   }
-  return {
+  const desc: ResourceDescriptor = {
     uri: raw.uri,
     name: raw.name,
     description: raw.description,
     mimeType: raw.mimeType,
   };
+  const title = parseSurfaceTitle(raw, label, titles);
+  if (title !== undefined) desc.title = title;
+  return desc;
 }
 
 function parsePromptSurface(
   raw: unknown,
   label: string,
+  titles = false,
 ): PromptDescriptor | undefined {
   if (raw === undefined) return undefined;
   if (!isPlainObject(raw)) {
@@ -149,13 +178,38 @@ function parsePromptSurface(
       required: a.required,
     });
   }
-  return { name: raw.name, description: raw.description, arguments: args };
+  const desc: PromptDescriptor = {
+    name: raw.name,
+    description: raw.description,
+    arguments: args,
+  };
+  const title = parseSurfaceTitle(raw, label, titles);
+  if (title !== undefined) desc.title = title;
+  return desc;
+}
+
+function parseInstructionsSurface(
+  raw: unknown,
+  label: string,
+): InstructionsDescriptor | undefined {
+  if (raw === undefined) return undefined;
+  if (!isPlainObject(raw)) {
+    throw new SurfacePinError(`${label}.surface must be an object when present`);
+  }
+  if (raw.name !== "instructions") {
+    throw new SurfacePinError(`${label}.surface.name must be "instructions"`);
+  }
+  if (typeof raw.text !== "string") {
+    throw new SurfacePinError(`${label}.surface.text must be a string`);
+  }
+  return { name: "instructions", text: raw.text };
 }
 
 function parseNameEntries(
   arr: unknown,
   label: string,
-  kind: "tools" | "prompts",
+  kind: "tools" | "prompts" | "instructions",
+  titles = false,
 ): LockNameEntry[] {
   if (!Array.isArray(arr)) {
     throw new SurfacePinError(`lockfile "${label}" must be an array`);
@@ -181,15 +235,21 @@ function parseNameEntries(
     if (e.surface !== undefined) {
       entry.surface =
         kind === "tools"
-          ? parseToolSurface(e.surface, `${label}[${i}]`)
-          : parsePromptSurface(e.surface, `${label}[${i}]`);
+          ? parseToolSurface(e.surface, `${label}[${i}]`, titles)
+          : kind === "prompts"
+            ? parsePromptSurface(e.surface, `${label}[${i}]`, titles)
+            : parseInstructionsSurface(e.surface, `${label}[${i}]`);
     }
     entries.push(entry);
   }
   return entries;
 }
 
-function parseUriEntries(arr: unknown, label: string): LockUriEntry[] {
+function parseUriEntries(
+  arr: unknown,
+  label: string,
+  titles = false,
+): LockUriEntry[] {
   if (!Array.isArray(arr)) {
     throw new SurfacePinError(`lockfile "${label}" must be an array`);
   }
@@ -212,7 +272,7 @@ function parseUriEntries(arr: unknown, label: string): LockUriEntry[] {
     }
     const entry: LockUriEntry = { uri: e.uri, digest: e.digest };
     if (e.surface !== undefined) {
-      entry.surface = parseResourceSurface(e.surface, `${label}[${i}]`);
+      entry.surface = parseResourceSurface(e.surface, `${label}[${i}]`, titles);
     }
     entries.push(entry);
   }
@@ -222,7 +282,8 @@ function parseUriEntries(arr: unknown, label: string): LockUriEntry[] {
 function parseNameSection(
   raw: unknown,
   label: string,
-  kind: "tools" | "prompts",
+  kind: "tools" | "prompts" | "instructions",
+  titles = false,
 ): { root: string; entries: LockNameEntry[] } {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw new SurfacePinError(`lockfile "${label}" must be an object`);
@@ -235,13 +296,14 @@ function parseNameSection(
   }
   return {
     root: o.root,
-    entries: parseNameEntries(o.entries, `${label}.entries`, kind),
+    entries: parseNameEntries(o.entries, `${label}.entries`, kind, titles),
   };
 }
 
 function parseUriSection(
   raw: unknown,
   label: string,
+  titles = false,
 ): { root: string; entries: LockUriEntry[] } {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw new SurfacePinError(`lockfile "${label}" must be an object`);
@@ -252,7 +314,7 @@ function parseUriSection(
       `lockfile "${label}.root" must be 64 lowercase hex chars`,
     );
   }
-  return { root: o.root, entries: parseUriEntries(o.entries, `${label}.entries`) };
+  return { root: o.root, entries: parseUriEntries(o.entries, `${label}.entries`, titles) };
 }
 
 export function parseLockfile(doc: unknown): Lockfile {
@@ -263,11 +325,22 @@ export function parseLockfile(doc: unknown): Lockfile {
   if (o.algorithm !== "sha256") {
     throw new SurfacePinError(`unsupported algorithm: ${String(o.algorithm)}`);
   }
-  if (o.canonicalization !== "surfacepin-jcs-v1") {
+  if (
+    o.canonicalization !== "surfacepin-jcs-v1" &&
+    o.canonicalization !== "surfacepin-jcs-v2"
+  ) {
     throw new SurfacePinError(
       `unsupported canonicalization: ${String(o.canonicalization)}`,
     );
   }
+  const canon = o.canonicalization as Canonicalization;
+  // jcs-v2 exists only in lockfile v3 (1.6.0+). Older formats are always jcs-v1.
+  if (canon === "surfacepin-jcs-v2" && o.version !== 3) {
+    throw new SurfacePinError(
+      `canonicalization surfacepin-jcs-v2 requires lockfile version 3 (got ${String(o.version)})`,
+    );
+  }
+  const titles = canon === "surfacepin-jcs-v2";
   if (typeof o.root !== "string" || !HEX64.test(o.root)) {
     throw new SurfacePinError('lockfile "root" must be 64 lowercase hex chars');
   }
@@ -288,19 +361,33 @@ export function parseLockfile(doc: unknown): Lockfile {
     const lock: LockfileV2 | LockfileV3 = {
       version: o.version,
       algorithm: "sha256",
-      canonicalization: "surfacepin-jcs-v1",
+      canonicalization: canon,
       root: o.root,
     };
     if (o.tools !== undefined) {
-      lock.tools = parseNameSection(o.tools, "tools", "tools");
+      lock.tools = parseNameSection(o.tools, "tools", "tools", titles);
     }
     if (o.resources !== undefined) {
-      lock.resources = parseUriSection(o.resources, "resources");
+      lock.resources = parseUriSection(o.resources, "resources", titles);
     }
     if (o.prompts !== undefined) {
-      lock.prompts = parseNameSection(o.prompts, "prompts", "prompts");
+      lock.prompts = parseNameSection(o.prompts, "prompts", "prompts", titles);
     }
-    if (!lock.tools && !lock.resources && !lock.prompts) {
+    if (o.instructions !== undefined) {
+      if (o.version !== 3 || !titles) {
+        throw new SurfacePinError(
+          "lockfile instructions section requires version 3 and canonicalization surfacepin-jcs-v2",
+        );
+      }
+      const sec = parseNameSection(o.instructions, "instructions", "instructions", titles);
+      if (sec.entries.length > 1 || sec.entries.some((e) => e.name !== "instructions")) {
+        throw new SurfacePinError(
+          'lockfile "instructions.entries" must hold at most one entry named "instructions"',
+        );
+      }
+      (lock as LockfileV3).instructions = sec;
+    }
+    if (!lock.tools && !lock.resources && !lock.prompts && !(lock as LockfileV3).instructions) {
       throw new SurfacePinError(
         `lockfile v${o.version} must include at least one of tools, resources, prompts`,
       );
@@ -318,6 +405,7 @@ export function lockfileKinds(lockfile: Lockfile): SurfaceKind[] {
   if (lockfile.tools) kinds.push("tools");
   if (lockfile.resources) kinds.push("resources");
   if (lockfile.prompts) kinds.push("prompts");
+  if (lockfile.version === 3 && lockfile.instructions) kinds.push("instructions");
   return kinds;
 }
 
@@ -329,6 +417,24 @@ function fieldsForToolChange(
   const old = oldEntry.surface as ToolDescriptor;
   if (!("inputSchema" in old)) return undefined;
   return diffToolDescriptors(old, newDesc);
+}
+
+function fieldsForInstructionsChange(
+  oldEntry: LockNameEntry,
+  newDesc: InstructionsDescriptor | undefined,
+): FieldChange[] | undefined {
+  if (!oldEntry.surface || !newDesc) return undefined;
+  const old = oldEntry.surface as InstructionsDescriptor;
+  if (typeof old.text !== "string" || old.text === newDesc.text) return undefined;
+  return [
+    {
+      path: "text",
+      kind: "changed",
+      kinds: ["COMPATIBLE"],
+      oldValue: JSON.stringify(old.text),
+      newValue: JSON.stringify(newDesc.text),
+    } as FieldChange,
+  ];
 }
 
 function fieldsForPromptChange(
@@ -350,10 +456,12 @@ function fieldsForResourceChange(
 }
 
 function diffNameSection(
-  kind: "tools" | "prompts",
+  kind: "tools" | "prompts" | "instructions",
   oldEntries: LockNameEntry[],
   newEntries: LockNameEntry[],
-  newDescriptors: Array<ToolDescriptor | PromptDescriptor> | undefined,
+  newDescriptors:
+    | Array<ToolDescriptor | PromptDescriptor | InstructionsDescriptor>
+    | undefined,
   rootOld: string,
   rootNew: string,
 ): SurfaceDiff {
@@ -379,7 +487,12 @@ function diffNameSection(
       const fields =
         kind === "tools"
           ? fieldsForToolChange(oldEntry, desc as ToolDescriptor | undefined)
-          : fieldsForPromptChange(oldEntry, desc as PromptDescriptor | undefined);
+          : kind === "prompts"
+            ? fieldsForPromptChange(oldEntry, desc as PromptDescriptor | undefined)
+            : fieldsForInstructionsChange(
+                oldEntry,
+                desc as InstructionsDescriptor | undefined,
+              );
       const row: SurfaceDiff["changed"][number] = {
         id: name,
         oldDigest: oldEntry.digest,
@@ -474,7 +587,9 @@ export function diffSurface(
     );
   }
 
-  const computed = computeSurface(doc, selected);
+  // Recompute with the lock's own profile: a jcs-v1 lock keeps verifying
+  // exactly as it did before jcs-v2 existed.
+  const computed = computeSurface(doc, selected, lockfile.canonicalization);
   const surfaces: SurfaceDiff[] = [];
 
   if (lockfile.version === 1) {
@@ -522,6 +637,18 @@ export function diffSurface(
           computed.prompts!.descriptors,
           lockfile.prompts.root,
           computed.prompts!.root,
+        ),
+      );
+    }
+    if (lockfile.version === 3 && lockfile.instructions) {
+      surfaces.push(
+        diffNameSection(
+          "instructions",
+          lockfile.instructions.entries,
+          computed.instructions!.entries,
+          computed.instructions!.descriptors,
+          lockfile.instructions.root,
+          computed.instructions!.root,
         ),
       );
     }
@@ -580,13 +707,13 @@ export function formatDiff(diff: DiffResult): string {
     }
     if (s.match) continue;
     for (const name of s.added) {
-      lines.push(`ADDED   ${name}`);
+      lines.push(`ADDED   ${displayId(name)}`);
     }
     for (const name of s.removed) {
-      lines.push(`REMOVED ${name}`);
+      lines.push(`REMOVED ${displayId(name)}`);
     }
     for (const c of s.changed) {
-      lines.push(`CHANGED ${c.id}`);
+      lines.push(`CHANGED ${displayId(c.id)}`);
       lines.push(`        ${c.oldDigest} -> ${c.newDigest}`);
       if (c.fields && c.fields.length > 0) {
         lines.push(...formatFieldChanges(c.fields, "        "));

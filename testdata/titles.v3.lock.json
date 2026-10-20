@@ -1,0 +1,96 @@
+{
+  "version": 3,
+  "algorithm": "sha256",
+  "canonicalization": "surfacepin-jcs-v2",
+  "root": "0c943de39ee8d74ed6574ef7b56adb57644eecad1545284812fcc984df93a40b",
+  "tools": {
+    "root": "b43c675d3a1b26c924377c4d393ad5f9039e6c157d9375bd515fec65c80d2f2a",
+    "entries": [
+      {
+        "name": "export_records",
+        "digest": "d1fc944b2741ab3aa2cb4ac22e39ad546234744aa366d00d2311222bbd3101d6",
+        "surface": {
+          "description": "Export ticket records to an approved destination.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "destination": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "destination"
+            ]
+          },
+          "name": "export_records",
+          "annotations": {
+            "title": "Export",
+            "readOnlyHint": false
+          },
+          "title": "Export Records"
+        }
+      },
+      {
+        "name": "ping",
+        "digest": "1fed27384210f0c6698b6799d1e1bbc8aa591c8dbf6cb7a47226b7f4da191b00",
+        "surface": {
+          "description": "Health check",
+          "inputSchema": {
+            "type": "object"
+          },
+          "name": "ping"
+        }
+      }
+    ]
+  },
+  "resources": {
+    "root": "12427d887b0bdcb9f727ddb06bd1e2c98a0e75fd0987fc8203d9fb7c486c692a",
+    "entries": [
+      {
+        "uri": "file:///docs/readme.md",
+        "digest": "200e7fd2813bbbb9b62c7fd49e83bdbeb23fd8aff800cb27c279f472c00276cc",
+        "surface": {
+          "description": "",
+          "mimeType": "text/markdown",
+          "name": "readme",
+          "uri": "file:///docs/readme.md",
+          "title": "Project README"
+        }
+      }
+    ]
+  },
+  "prompts": {
+    "root": "a3ffbda1f1b7920c8478753a10e1a4ef8a4d8867785172701202afc9ef3e89ca",
+    "entries": [
+      {
+        "name": "summarize",
+        "digest": "0a02792682376fe548dcc9d466ade8807abe1fb3496b6168a98cf988441a34ce",
+        "surface": {
+          "arguments": [
+            {
+              "description": "",
+              "name": "id",
+              "required": true
+            }
+          ],
+          "description": "",
+          "name": "summarize",
+          "title": "Summarize a ticket"
+        }
+      }
+    ]
+  },
+  "instructions": {
+    "root": "da351f349614e1a67314da2d4846b63329b55d82e1a6e5fd89b2154d0c1b11d7",
+    "entries": [
+      {
+        "name": "instructions",
+        "digest": "4979db0622fb9f835c43826745fca5f746a3eb6ffdd4a549493b1cb18ec4e392",
+        "surface": {
+          "name": "instructions",
+          "text": "Call ping before export_records."
+        }
+      }
+    ]
+  }
+}

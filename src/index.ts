@@ -56,10 +56,11 @@ export type {
   ChangeKind,
   DiffTaxonomyKind,
 } from "./schema-diff.js";
-export { normalizeKinds } from "./schema-diff.js";
+export { normalizeKinds, displayId } from "./schema-diff.js";
 export { fetchToolsViaStdio, fetchSurfacesViaStdio } from "./mcp-stdio.js";
 export type { StdioFetchOptions, ToolsListDoc } from "./mcp-stdio.js";
 export type {
+  Canonicalization,
   SurfaceKind,
   ToolSurface,
   ToolDescriptor,
@@ -81,4 +82,9 @@ export type {
   DiffResult,
   SurfaceDiff,
 } from "./types.js";
-export { SurfacePinError, ALL_SURFACE_KINDS } from "./types.js";
+export {
+  SurfacePinError,
+  ALL_SURFACE_KINDS,
+  DEFAULT_CANONICALIZATION,
+} from "./types.js";
+export { VERSION } from "./version.js";

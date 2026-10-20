@@ -25,8 +25,11 @@ const basicMultiLock = JSON.parse(
 
 describe("library pin/verify/diff", () => {
   it("pin matches computeSurface + golden v3", () => {
-    const result = pin(basicTools);
-    assert.equal(result.root, computeSurface(basicTools).root);
+    const result = pin(basicTools, { canonicalization: "surfacepin-jcs-v1" });
+    assert.equal(
+      result.root,
+      computeSurface(basicTools, undefined, "surfacepin-jcs-v1").root,
+    );
     assert.deepEqual(result.lockfile, basicLockV3);
     assert.equal(result.text.endsWith("\n"), true);
     assert.deepEqual(JSON.parse(result.text), basicLockV3);

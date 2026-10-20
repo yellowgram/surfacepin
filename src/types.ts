@@ -1,17 +1,38 @@
 import type { FieldChange } from "./schema-diff.js";
 
-/** Surface kinds SurfacePin can pin. */
-export type SurfaceKind = "tools" | "resources" | "prompts";
+/**
+ * Surface kinds SurfacePin can pin. `instructions` is the server's
+ * initialize.instructions text (1.6.0+, jcs-v2 locks only).
+ */
+export type SurfaceKind = "tools" | "resources" | "prompts" | "instructions";
 
 export const ALL_SURFACE_KINDS: readonly SurfaceKind[] = [
   "tools",
   "resources",
   "prompts",
+  "instructions",
 ] as const;
 
-/** MCP Tool fields used by SurfacePin (title/icons/_meta ignored). */
+/** Normalized initialize.instructions (one entry, present only when non-empty). */
+export interface InstructionsDescriptor {
+  name: "instructions";
+  text: string;
+}
+
+/**
+ * Canonicalization profile recorded in the lockfile.
+ * - surfacepin-jcs-v1: title ignored everywhere (locks written by <= 1.5).
+ * - surfacepin-jcs-v2: v1 plus tool/resource/prompt `title` and tool
+ *   `annotations.title`. Default for new locks since 1.6.0.
+ */
+export type Canonicalization = "surfacepin-jcs-v1" | "surfacepin-jcs-v2";
+
+export const DEFAULT_CANONICALIZATION: Canonicalization = "surfacepin-jcs-v2";
+
+/** MCP Tool fields used by SurfacePin (icons/_meta ignored; title hashed under jcs-v2). */
 export interface ToolSurface {
   name: string;
+  title?: unknown;
   description?: string;
   inputSchema?: Record<string, unknown>;
   /** Client hints; title dropped; absent/non-object omitted from hash. */
@@ -23,6 +44,8 @@ export interface ToolSurface {
 /** Normalized descriptor hashed for a single tool. */
 export interface ToolDescriptor {
   name: string;
+  /** jcs-v2 only: present when the tool has a string title. */
+  title?: string;
   description: string;
   inputSchema: Record<string, unknown>;
   /** Present only when tool.annotations is an object with keys after dropping title. */
@@ -35,6 +58,7 @@ export interface ToolDescriptor {
 export interface ResourceSurface {
   uri: string;
   name: string;
+  title?: unknown;
   description?: string;
   mimeType?: string;
 }
@@ -43,6 +67,8 @@ export interface ResourceSurface {
 export interface ResourceDescriptor {
   uri: string;
   name: string;
+  /** jcs-v2 only. */
+  title?: string;
   description: string;
   mimeType: string;
 }
@@ -57,6 +83,7 @@ export interface PromptArgumentSurface {
 /** MCP Prompt fields used by SurfacePin. */
 export interface PromptSurface {
   name: string;
+  title?: unknown;
   description?: string;
   arguments?: PromptArgumentSurface[];
 }
@@ -71,6 +98,8 @@ export interface PromptArgumentDescriptor {
 /** Normalized descriptor hashed for a single prompt. */
 export interface PromptDescriptor {
   name: string;
+  /** jcs-v2 only. */
+  title?: string;
   description: string;
   arguments: PromptArgumentDescriptor[];
 }
@@ -81,9 +110,9 @@ export interface LockNameEntry {
   digest: string;
   /**
    * Exact hashed descriptor payload (lockfile v3+).
-   * Tools: ToolDescriptor; prompts: PromptDescriptor.
+   * Tools: ToolDescriptor; prompts: PromptDescriptor; instructions: InstructionsDescriptor.
    */
-  surface?: ToolDescriptor | PromptDescriptor;
+  surface?: ToolDescriptor | PromptDescriptor | InstructionsDescriptor;
 }
 
 /** One URI-keyed entry in a resources lock section. */
@@ -125,7 +154,7 @@ export interface LockfileV1 {
 export interface LockfileV2 {
   version: 2;
   algorithm: "sha256";
-  canonicalization: "surfacepin-jcs-v1";
+  canonicalization: Canonicalization;
   root: string;
   tools?: LockNameSection;
   resources?: LockUriSection;
@@ -140,11 +169,13 @@ export interface LockfileV2 {
 export interface LockfileV3 {
   version: 3;
   algorithm: "sha256";
-  canonicalization: "surfacepin-jcs-v1";
+  canonicalization: Canonicalization;
   root: string;
   tools?: LockNameSection;
   resources?: LockUriSection;
   prompts?: LockNameSection;
+  /** jcs-v2 only. */
+  instructions?: LockNameSection;
 }
 
 export type Lockfile = LockfileV1 | LockfileV2 | LockfileV3;

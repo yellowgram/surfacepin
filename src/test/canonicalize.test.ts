@@ -132,7 +132,7 @@ describe("digests", () => {
   });
 });
 
-describe("golden vectors", () => {
+describe("golden vectors (jcs-v1, locks written by <= 1.5)", () => {
   it("basic tools match golden lockfile v3", () => {
     const tools = JSON.parse(
       readFileSync(join(testdata, "basic.tools.json"), "utf8"),
@@ -140,7 +140,7 @@ describe("golden vectors", () => {
     const golden = JSON.parse(
       readFileSync(join(testdata, "basic.v3.lock.json"), "utf8"),
     );
-    const { lockfile } = computeSurface(tools);
+    const { lockfile } = computeSurface(tools, undefined, "surfacepin-jcs-v1");
     assert.deepEqual(lockfile, golden);
     assert.equal(lockfile.version, 3);
   });
@@ -163,7 +163,7 @@ describe("golden vectors", () => {
     const golden = JSON.parse(
       readFileSync(join(testdata, "empty.v3.lock.json"), "utf8"),
     );
-    const { lockfile } = computeSurface(tools);
+    const { lockfile } = computeSurface(tools, undefined, "surfacepin-jcs-v1");
     assert.deepEqual(lockfile, golden);
     assert.equal(lockfile.version, 3);
   });
@@ -175,8 +175,8 @@ describe("golden vectors", () => {
     const b = JSON.parse(
       readFileSync(join(testdata, "schema-order-b.tools.json"), "utf8"),
     );
-    const ca = computeSurface(a);
-    const cb = computeSurface(b);
+    const ca = computeSurface(a, undefined, "surfacepin-jcs-v1");
+    const cb = computeSurface(b, undefined, "surfacepin-jcs-v1");
     assert.equal(ca.root, cb.root);
     assert.equal(ca.tools!.entries[0].digest, cb.tools!.entries[0].digest);
   });
@@ -205,7 +205,7 @@ describe("golden vectors", () => {
         },
       ],
     };
-    assert.equal(computeSurface(pretty).root, computeSurface(shuffled).root);
+    assert.equal(computeSurface(pretty, undefined, "surfacepin-jcs-v1").root, computeSurface(shuffled, undefined, "surfacepin-jcs-v1").root);
   });
 
   it("multi-surface golden matches lockfile v3", () => {
@@ -215,11 +215,11 @@ describe("golden vectors", () => {
     const golden = JSON.parse(
       readFileSync(join(testdata, "basic.multi.lock.json"), "utf8"),
     );
-    const { lockfile } = computeSurface(surface, [
-      "tools",
-      "resources",
-      "prompts",
-    ]);
+    const { lockfile } = computeSurface(
+      surface,
+      ["tools", "resources", "prompts"],
+      "surfacepin-jcs-v1",
+    );
     assert.deepEqual(lockfile, golden);
     assert.equal(lockfile.version, 3);
     // Embedded surfaces present
@@ -312,7 +312,7 @@ describe("verify / diff", () => {
 
   it("defaults missing description and inputSchema", () => {
     const doc = { tools: [{ name: "bare" }] };
-    const { lockfile } = computeSurface(doc);
+    const { lockfile } = computeSurface(doc, undefined, "surfacepin-jcs-v1");
     assert.equal(lockfile.version, 3);
     const v3 = lockfile as LockfileV3;
     assert.equal(v3.tools!.entries.length, 1);
@@ -321,7 +321,7 @@ describe("verify / diff", () => {
     const doc2 = {
       tools: [{ name: "bare", description: "", inputSchema: {} }],
     };
-    assert.equal(computeSurface(doc).root, computeSurface(doc2).root);
+    assert.equal(computeSurface(doc, undefined, "surfacepin-jcs-v1").root, computeSurface(doc2, undefined, "surfacepin-jcs-v1").root);
   });
 
   it("rejects duplicate names", () => {

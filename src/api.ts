@@ -5,7 +5,7 @@
  */
 import { computeSurface, serializeLockfile } from "./lock.js";
 import { fetchSurfacesViaStdio, type StdioFetchOptions } from "./mcp-stdio.js";
-import type { SurfaceKind } from "./types.js";
+import type { Canonicalization, SurfaceKind } from "./types.js";
 import {
   diffSurface,
   formatDiff,
@@ -19,6 +19,11 @@ import type { DiffResult, Lockfile } from "./types.js";
 export interface PinOptions {
   /** Surface kinds to hash. Default: tools. */
   surfaces?: readonly SurfaceKind[];
+  /**
+   * Profile to write. Default surfacepin-jcs-v2 (hashes titles). Use
+   * surfacepin-jcs-v1 only while a verifier older than 1.6.0 must read the lock.
+   */
+  canonicalization?: Canonicalization;
 }
 
 export interface PinResult {
@@ -49,7 +54,11 @@ function kindsOrTools(surfaces?: readonly SurfaceKind[]): SurfaceKind[] {
 
 /** Hash a surface document into a lockfile v3. */
 export function pin(doc: unknown, options?: PinOptions): PinResult {
-  const computed = computeSurface(doc, kindsOrTools(options?.surfaces));
+  const computed = computeSurface(
+    doc,
+    kindsOrTools(options?.surfaces),
+    options?.canonicalization,
+  );
   return {
     lockfile: computed.lockfile,
     root: computed.root,
@@ -79,13 +88,15 @@ export function diff(
   return verify(doc, lockfile, options).diff;
 }
 
-export interface PinStdioOptions extends StdioFetchOptions {}
+export interface PinStdioOptions extends StdioFetchOptions {
+  canonicalization?: Canonicalization;
+}
 
 /** Fetch a live stdio server, then pin. */
 export async function pinStdio(opts: PinStdioOptions): Promise<PinResult> {
   const surfaces = kindsOrTools(opts.surfaces);
   const doc = await fetchSurfacesViaStdio({ ...opts, surfaces });
-  return pin(doc, { surfaces });
+  return pin(doc, { surfaces, canonicalization: opts.canonicalization });
 }
 
 export interface VerifyStdioOptions extends StdioFetchOptions {

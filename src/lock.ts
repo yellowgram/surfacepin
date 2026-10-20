@@ -1,4 +1,6 @@
 import {
+  instructionsDigest,
+  instructionsSectionRoot,
   overallRootDigestV2,
   promptDigest,
   promptsSectionRoot,
@@ -9,12 +11,16 @@ import {
 } from "./hash.js";
 import {
   extractSurfaces,
+  normalizeInstructions,
   normalizePrompts,
   normalizeResources,
   normalizeTools,
   type SurfaceDoc,
 } from "./normalize.js";
+import { DEFAULT_CANONICALIZATION, SurfacePinError } from "./types.js";
 import type {
+  Canonicalization,
+  InstructionsDescriptor,
   Lockfile,
   LockfileV3,
   LockNameEntry,
@@ -42,6 +48,11 @@ export interface ComputedSurface {
     entries: LockNameEntry[];
     root: string;
   };
+  instructions?: {
+    descriptors: InstructionsDescriptor[];
+    entries: LockNameEntry[];
+    root: string;
+  };
   root: string;
   lockfile: Lockfile;
 }
@@ -55,22 +66,25 @@ function toolSurfacePayload(d: ToolDescriptor): ToolDescriptor {
   };
   if (d.annotations !== undefined) payload.annotations = d.annotations;
   if (d.outputSchema !== undefined) payload.outputSchema = d.outputSchema;
+  if (d.title !== undefined) payload.title = d.title;
   return payload;
 }
 
 /** Exact hashed resource payload (matches resourceDigest input). */
 function resourceSurfacePayload(d: ResourceDescriptor): ResourceDescriptor {
-  return {
+  const payload: ResourceDescriptor = {
     description: d.description,
     mimeType: d.mimeType,
     name: d.name,
     uri: d.uri,
   };
+  if (d.title !== undefined) payload.title = d.title;
+  return payload;
 }
 
 /** Exact hashed prompt payload (matches promptDigest input). */
 function promptSurfacePayload(d: PromptDescriptor): PromptDescriptor {
-  return {
+  const payload: PromptDescriptor = {
     arguments: d.arguments.map((a) => ({
       description: a.description,
       name: a.name,
@@ -79,23 +93,27 @@ function promptSurfacePayload(d: PromptDescriptor): PromptDescriptor {
     description: d.description,
     name: d.name,
   };
+  if (d.title !== undefined) payload.title = d.title;
+  return payload;
 }
 
 /** Compute digests and build a lockfile from a surface document. */
 export function computeSurface(
   doc: unknown,
   kinds: readonly SurfaceKind[] = ["tools"],
+  canon: Canonicalization = DEFAULT_CANONICALIZATION,
 ): ComputedSurface {
   if (kinds.length === 0) {
     throw new Error("at least one surface kind is required");
   }
   const extracted = extractSurfaces(doc, kinds);
-  return computeFromExtracted(extracted, kinds);
+  return computeFromExtracted(extracted, kinds, canon);
 }
 
 export function computeFromExtracted(
   extracted: SurfaceDoc,
   kinds: readonly SurfaceKind[],
+  canon: Canonicalization = DEFAULT_CANONICALIZATION,
 ): ComputedSurface {
   const result: ComputedSurface = {
     kinds: [...kinds],
@@ -106,7 +124,7 @@ export function computeFromExtracted(
   const sectionRoots: Array<{ kind: SurfaceKind; root: string }> = [];
 
   if (kinds.includes("tools")) {
-    const descriptors = normalizeTools(extracted.tools ?? []);
+    const descriptors = normalizeTools(extracted.tools ?? [], canon);
     const entries: LockNameEntry[] = descriptors.map((d) => ({
       name: d.name,
       digest: toolDigest(d),
@@ -118,7 +136,7 @@ export function computeFromExtracted(
   }
 
   if (kinds.includes("resources")) {
-    const descriptors = normalizeResources(extracted.resources ?? []);
+    const descriptors = normalizeResources(extracted.resources ?? [], canon);
     const entries: LockUriEntry[] = descriptors.map((d) => ({
       uri: d.uri,
       digest: resourceDigest(d),
@@ -130,7 +148,7 @@ export function computeFromExtracted(
   }
 
   if (kinds.includes("prompts")) {
-    const descriptors = normalizePrompts(extracted.prompts ?? []);
+    const descriptors = normalizePrompts(extracted.prompts ?? [], canon);
     const entries: LockNameEntry[] = descriptors.map((d) => ({
       name: d.name,
       digest: promptDigest(d),
@@ -141,13 +159,30 @@ export function computeFromExtracted(
     sectionRoots.push({ kind: "prompts", root });
   }
 
+  if (kinds.includes("instructions")) {
+    if (canon !== "surfacepin-jcs-v2") {
+      throw new SurfacePinError(
+        "the instructions surface needs canonicalization surfacepin-jcs-v2",
+      );
+    }
+    const descriptors = normalizeInstructions(extracted.instructions);
+    const entries: LockNameEntry[] = descriptors.map((d) => ({
+      name: d.name,
+      digest: instructionsDigest(d),
+      surface: { name: d.name, text: d.text },
+    }));
+    const root = instructionsSectionRoot(entries);
+    result.instructions = { descriptors, entries, root };
+    sectionRoots.push({ kind: "instructions", root });
+  }
+
   // Lockfile v3: section shape matches v2 + embedded `surface` on each entry.
   // Digests / section roots / overall root are identical to v2 for the same content.
   const root = overallRootDigestV2(sectionRoots);
   const lockfile: LockfileV3 = {
     version: 3,
     algorithm: "sha256",
-    canonicalization: "surfacepin-jcs-v1",
+    canonicalization: canon,
     root,
   };
   if (result.tools) {
@@ -163,6 +198,12 @@ export function computeFromExtracted(
     lockfile.prompts = {
       root: result.prompts.root,
       entries: result.prompts.entries,
+    };
+  }
+  if (result.instructions) {
+    lockfile.instructions = {
+      root: result.instructions.root,
+      entries: result.instructions.entries,
     };
   }
   result.root = root;
